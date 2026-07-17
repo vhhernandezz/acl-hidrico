@@ -1,0 +1,9 @@
+{
+  "name": "@acl-hidrico/intrusion-marina",
+  "private": true,
+  "version": "0.1.0",
+  "main": "src/index.js",
+  "peerDependencies": {
+    "@acl-hidrico/core": "*"
+  }
+}

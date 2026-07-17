@@ -1,0 +1,21 @@
+{
+  "name": "acl-hidrico",
+  "private": true,
+  "version": "0.1.0",
+  "description": "ACL Gestión Hídrica - Monorepo (Hub corporativo + Spokes por planta)",
+  "workspaces": [
+    "apps/*",
+    "packages/core",
+    "packages/modules/*"
+  ],
+  "scripts": {
+    "dev:hub": "npm run dev --workspace=apps/hub",
+    "dev:pucusana": "npm run dev --workspace=apps/pucusana",
+    "build:hub": "npm run build --workspace=apps/hub",
+    "build:pucusana": "npm run build --workspace=apps/pucusana",
+    "build:all": "npm run build --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
