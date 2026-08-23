@@ -1,0 +1,75 @@
+.opc-card {
+  --opc-ink: #0f2e2e;
+  --opc-teal: #0f5c5a;
+  --opc-sand: #f6f3ec;
+  --opc-sand-deep: #e9e3d4;
+  --opc-rojo: #b3422f;
+
+  max-width: 42rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 1rem;
+  background: var(--opc-sand);
+  border: 1px solid var(--opc-sand-deep);
+  border-left: 4px solid var(--opc-teal);
+  border-radius: 0.5rem;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--opc-ink);
+}
+
+.opc-card--error {
+  border-left-color: var(--opc-rojo);
+}
+
+.opc-card-header {
+  margin-bottom: 1rem;
+}
+
+.opc-eyebrow {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--opc-teal);
+  margin-bottom: 0.25rem;
+}
+
+.opc-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.3;
+}
+
+.opc-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-bottom: 0.5rem;
+}
+
+.opc-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.opc-select {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.88rem;
+  border: 1px solid #c7c0ac;
+  border-radius: 0.35rem;
+  background: #fff;
+  color: var(--opc-ink);
+}
+
+.opc-status-text {
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+@media (max-width: 480px) {
+  .opc-card {
+    padding: 1.1rem 1rem;
+    border-radius: 0;
+  }
+}

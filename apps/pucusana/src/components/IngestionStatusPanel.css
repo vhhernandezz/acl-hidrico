@@ -1,0 +1,207 @@
+.ingestion-panel-card {
+  --ing-ink: #0f2e2e;
+  --ing-teal: #0f5c5a;
+  --ing-aqua: #4fb0ae;
+  --ing-sand: #f6f3ec;
+  --ing-sand-deep: #e9e3d4;
+  --ing-verde: #2f6d4f;
+  --ing-verde-bg: #e6f2ea;
+  --ing-amarillo: #93690f;
+  --ing-amarillo-bg: #fbf1de;
+  --ing-rojo: #b3422f;
+  --ing-rojo-bg: #fbeae6;
+  --ing-gris: #6b7574;
+  --ing-gris-bg: #ecebe6;
+
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 1.25rem;
+  background: var(--ing-sand);
+  border: 1px solid var(--ing-sand-deep);
+  border-left: 4px solid var(--ing-teal);
+  border-radius: 0.5rem;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--ing-ink);
+}
+
+.ingestion-panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.ingestion-panel-eyebrow {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ing-teal);
+  margin-bottom: 0.25rem;
+}
+
+.ingestion-panel-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.ingestion-refresh-btn {
+  flex-shrink: 0;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--ing-teal);
+  border: none;
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.ingestion-refresh-btn:hover:not(:disabled) {
+  background: #0c4a48;
+}
+
+.ingestion-refresh-btn:disabled {
+  background: #a9b5b4;
+  cursor: not-allowed;
+}
+
+.ingestion-panel-status-text {
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+.ingestion-panel-banner {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.4rem;
+  font-size: 0.85rem;
+}
+
+.ingestion-panel-banner--error {
+  background: var(--ing-rojo-bg);
+  color: var(--ing-rojo);
+}
+
+.ingestion-well-group {
+  margin-bottom: 1.5rem;
+}
+
+.ingestion-well-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  margin: 0 0 0.5rem;
+  color: var(--ing-teal);
+}
+
+.ingestion-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 0.4rem;
+  overflow: hidden;
+  font-size: 0.85rem;
+}
+
+.ingestion-table th {
+  text-align: left;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: #5b6b6a;
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid var(--ing-sand-deep);
+}
+
+.ingestion-table td {
+  padding: 0.55rem 0.65rem;
+  border-bottom: 1px solid #f0ede3;
+  vertical-align: middle;
+}
+
+.ingestion-table tr:last-child td {
+  border-bottom: none;
+}
+
+.ingestion-value-cell {
+  font-family: ui-monospace, 'SF Mono', 'Roboto Mono', monospace;
+  font-weight: 600;
+}
+
+.ingestion-unit {
+  font-family: inherit;
+  font-weight: 400;
+  color: #5b6b6a;
+  font-size: 0.78rem;
+}
+
+.ingestion-source-cell {
+  text-transform: capitalize;
+  color: #5b6b6a;
+}
+
+.ingestion-status-cell {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.ingestion-dot {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.dot--verde    { background: var(--ing-verde); }
+.dot--amarillo { background: var(--ing-amarillo); }
+.dot--rojo     { background: var(--ing-rojo); }
+.dot--gris     { background: var(--ing-gris); }
+
+.ingestion-panel-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--ing-sand-deep);
+  font-size: 0.75rem;
+  color: #5b6b6a;
+}
+
+.ingestion-legend {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  flex-wrap: wrap;
+}
+
+.ingestion-legend .ingestion-dot {
+  margin-left: 0.5rem;
+}
+
+.ingestion-legend .ingestion-dot:first-child {
+  margin-left: 0;
+}
+
+@media (max-width: 640px) {
+  .ingestion-panel-card {
+    padding: 1.1rem 1rem;
+    border-radius: 0;
+  }
+  .ingestion-table {
+    font-size: 0.78rem;
+  }
+  .ingestion-table th:nth-child(4),
+  .ingestion-table td:nth-child(4) {
+    display: none; /* ocultar 'Fuente' en pantallas angostas */
+  }
+}
