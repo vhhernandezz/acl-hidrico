@@ -2,7 +2,7 @@
 
 > Este documento consolida el historial de decisiones técnicas, convenciones y pendientes del proyecto, para que el desarrollo pueda continuar sin pérdida de contexto — incluyendo desde una máquina nueva o una sesión de chat nueva (que no tiene memoria de conversaciones anteriores).
 >
-> Última actualización: tras cerrar la Sesión 3-A (motor de evaluación de umbrales).
+> Última actualización: tras cerrar la Sesión 3-B (panel de alarmas del Hub, bootstrap completo de apps/hub).
 
 ---
 
@@ -89,6 +89,12 @@ Para correr comandos del CLI sobre Pucusana: `cd supabase/pucusana` y desde ahí
 
 ### Fase 3 — Alertas
 - **3-A**: Función + trigger `evaluate_reading_threshold()` (migración 0013) — evalúa cada lectura nueva contra `well_parameters` y gestiona el ciclo de vida completo en `alerts`: crea, escala/actualiza, o resuelve automáticamente. Probado en producción con éxito (TDS crítico → resuelto).
+- **3-B**: Panel de Alarmas Activas del **Hub** (`AlarmasActivasPanel.jsx`), con filtro por planta y nivel, y botón "Reconocer" (Realtime). Esta sesión resultó mucho más grande de lo esperado porque:
+  - `apps/hub` nunca se había bootstrapeado (no existía `package.json`, `vite.config.js`, `main.jsx`, cliente Supabase — nada). Se creó todo desde cero, puerto 5175.
+  - El proyecto Supabase del Hub **nunca se había creado realmente**, y la migración `0001_schema_hub.sql` de la Sesión 0-B **nunca se subió a GitHub** — se reconstruyó desde el historial de la conversación y se subió recién en esta sesión.
+  - Se sembró por primera vez el catálogo `plantas` (0002) — solo Pucusana con `sync_enabled=true`, las otras 5 son referencia sin sincronización real.
+  - Se agregaron campos `acknowledged_at`/`acknowledged_by` a `alarmas_activas`, se habilitó Realtime sobre esa tabla, y se creó una política temporal anon (0003) — mismo patrón que Pucusana, con su propia reversión pendiente (0004).
+  - Como no existe la función de sincronización Hub↔spoke todavía, se probó con datos de prueba insertados directo por SQL (`test_alarmas_hub.sql`).
 
 ---
 
@@ -105,17 +111,20 @@ Para correr comandos del CLI sobre Pucusana: `cd supabase/pucusana` y desde ahí
 
 ## 6. Pendientes explícitos (nada bloqueante hoy, pero no perder de vista)
 
-1. **Revertir migración `0006`** (lectura anon temporal, solo para desarrollo sin login) en cuanto exista Auth real. El archivo de reversión ya existe: `0007_revert_temp_dev_anon_read_only.sql`, solo falta ejecutarlo cuando corresponda.
-2. **Login / Supabase Auth** — bloqueante real para: (a) que el formulario de caudal (1-A) pueda enviar datos de verdad, (b) poder cerrar el punto 1 sin romper la app.
+1. **Revertir migraciones temporales anon** en cuanto exista Auth real, en AMBOS proyectos:
+   - Pucusana: `0007_revert_temp_dev_anon_read_only.sql` (revierte la 0006).
+   - Hub: `0004_revert_temp_dev_anon_access.sql` (revierte la 0003).
+2. **Login / Supabase Auth** — pendiente en los DOS proyectos (Pucusana y Hub), cada uno con su propio esquema de `profiles`/roles ya definido, solo falta construir el flujo de login. Bloqueante real para: (a) que el formulario de caudal (1-A) pueda enviar datos de verdad, (b) que el botón "Reconocer" del Hub funcione con usuario real (hoy es anon), (c) poder cerrar el punto 1 sin romper ninguna de las dos apps.
 3. **Umbral de Nivel de Napa** — falta que Victor defina los valores numéricos (se descartó un margen de +2m/+5m sobre el nivel dinámico de referencia por falta de certeza técnica).
 4. **Factor de conversión CE↔TDS** — cuando se defina (para cuando el cliente pida ver CE en vez de TDS en las tarjetas KPI), migrar el umbral de la tarjeta de TDS a CE.
 5. **Dónde viven el formulario de caudal (1-A) y el panel de ingesta (1-D)** dentro de `OperatorLayout` — hoy están montados aparte en `main.jsx`, no integrados al layout final.
 6. **Vista dual de ambos pozos a la vez** (como muestra el prototipo del cliente) — hoy cada gráfico/tarjeta usa selector de un pozo a la vez. Decisión consciente de posponerlo.
 7. **`well_parameters` para el resto de parámetros** (Cloruros, Sulfatos, etc.) — solo TDS, CAUDAL_EXTRACCION y NIVEL_AGUA están sembrados; el resto del catálogo no tiene fila en `well_parameters`, por lo que el trigger de la 3-A no genera alertas para ellos todavía.
-8. **Mostrar alertas en la UI** — la tabla `alerts` ya se llena sola (Sesión 3-A), pero no hay ningún componente que las muestre. El ítem "Alertas" del sidebar sigue bloqueado.
-9. **Dataloggers de prueba** (`DL-TEST-01` en Pozo 1, `DL-TEST-02` en Pozo 3) — reemplazar por dispositivos reales cuando lleguen; sus API keys en claro **no se pueden recuperar** (solo quedó el hash en la base).
-10. **Selenio Total histórico** — existe en el Excel del cliente en una sección aparte con fechas parcialmente solapadas; no se cargó por riesgo de duplicados. Pendiente si se necesita.
-11. **Consolidar nomenclatura `alerts` vs `alarmas_activas`** entre Pucusana y Hub (cosmético, no urgente).
+8. **Función de sincronización Hub↔spoke** — sigue sin existir. `alarmas_activas` y `planta_status` del Hub no se actualizan solas; hoy solo tienen los datos de prueba de la 3-B. Es la pieza que le daría sentido real al filtro por planta (hoy solo Pucusana tiene datos, y son de prueba).
+9. **Layout/shell propio del Hub** (análogo a `OperatorLayout` de Pucusana) — el panel de alarmas del Hub se monta solo, sin header/sidebar/topbar todavía.
+10. **Dataloggers de prueba** (`DL-TEST-01` en Pozo 1, `DL-TEST-02` en Pozo 3) — reemplazar por dispositivos reales cuando lleguen; sus API keys en claro **no se pueden recuperar** (solo quedó el hash en la base).
+11. **Selenio Total histórico** — existe en el Excel del cliente en una sección aparte con fechas parcialmente solapadas; no se cargó por riesgo de duplicados. Pendiente si se necesita.
+12. **Consolidar nomenclatura `alerts` (Pucusana) vs `alarmas_activas` (Hub)** — cosmético, no urgente.
 
 ---
 
@@ -124,6 +133,7 @@ Para correr comandos del CLI sobre Pucusana: `cd supabase/pucusana` y desde ahí
 | Secreto | Dónde vive | Notas |
 |---|---|---|
 | `apps/pucusana/.env` (Supabase URL + anon key) | Local en cada máquina de desarrollo, gitignored | Copiar manualmente entre máquinas |
+| `apps/hub/.env` (Supabase URL + anon key — proyecto DISTINTO al de Pucusana) | Local en cada máquina de desarrollo, gitignored | Ídem — creado por primera vez en la Sesión 3-B |
 | Sesión de `supabase login` | Local, por máquina | Se re-autentica con el navegador en cada máquina nueva |
 | PAT de GitHub embebido en el remoto git | Local, por máquina — **solo desktop** | `git remote set-url` con el PAT. En la laptop se usa Git Credential Manager (login vía navegador) en vez de esto — ver sección 10 |
 | API keys de `DL-TEST-01` / `DL-TEST-02` | Perdidas si no se guardaron aparte — solo el hash SHA-256 vive en la tabla `dataloggers` | Si se necesitan, regenerar y actualizar el hash con `UPDATE` |
@@ -143,9 +153,10 @@ Ninguno de los dos se guardó dentro del repo Git — si se necesitan en una má
 ## 9. Próxima sesión sugerida
 
 Al momento de escribir esto, las opciones más lógicas para continuar son (en cualquier orden, según prioridad del negocio):
-- Componente de visualización de alertas (consume la tabla `alerts`, ya poblada desde la 3-A).
-- Sesión de Login/Auth (desbloquea 1-A y permite cerrar el punto pendiente #1).
+- Función de sincronización Hub↔Pucusana (le daría datos reales al panel de alarmas de la 3-B, hoy solo con datos de prueba).
+- Sesión de Login/Auth (desbloquea 1-A, el botón "Reconocer" del Hub con usuario real, y permite cerrar los puntos pendientes #1).
 - Definir umbral de Nivel de Napa con Victor y sembrarlo.
+- Layout/shell propio del Hub (análogo a `OperatorLayout`).
 
 ---
 
@@ -161,4 +172,6 @@ A partir de la Sesión 3-A, el desarrollo continúa alternando entre una desktop
 - **`.env` de `apps/pucusana`**: no viaja con git (está en `.gitignore`). Se recreó manualmente en la laptop con los mismos valores de URL/anon key que la desktop.
 
 **Conflictos de merge esperables:** si ambas máquinas corren `npm install` de forma independiente entre sesiones, `package-lock.json` puede entrar en conflicto al hacer `git pull` (ya pasó una vez). La solución simple y segura: **nunca editar `package-lock.json` a mano** — en un conflicto, borrarlo (`rm package-lock.json`), correr `npm install` para regenerarlo, y luego `git add` + commit para cerrar el merge. `package.json` sí puede (y debe) fusionarse normalmente si el conflicto llega a tocarlo.
+
+**Lección de la Sesión 3-B — verificar, no asumir, que un archivo llegó a GitHub:** la migración `0001_schema_hub.sql` de la Sesión 0-B se generó en el chat, pero nunca se confirmó explícitamente que se hubiera copiado al repo y subido — y en efecto, no estaba. Se descubrió varias sesiones después, a mitad de la 3-B, cuando hacía falta ese archivo para poder crear el proyecto Supabase del Hub. Iguales para `docs/decisiones.md` la primera vez (se quedó como descarga suelta, nunca llegó al repo). Regla práctica: después de que el chat entregue un archivo para descargar, el paso "cópialo a tu repo y haz `git add`/`commit`/`push`" no está completo hasta que lo confirmes viéndolo en GitHub.com — no basta con haberlo descargado.
 
