@@ -2,7 +2,7 @@
 
 > Este documento consolida el historial de decisiones técnicas, convenciones y pendientes del proyecto, para que el desarrollo pueda continuar sin pérdida de contexto — incluyendo desde una máquina nueva o una sesión de chat nueva (que no tiene memoria de conversaciones anteriores).
 >
-> Última actualización: tras cerrar la Sesión 3-B (panel de alarmas del Hub, bootstrap completo de apps/hub).
+> Última actualización: tras cerrar la Sesión 3-C (configurador de umbrales por pozo).
 
 ---
 
@@ -95,31 +95,36 @@ Para correr comandos del CLI sobre Pucusana: `cd supabase/pucusana` y desde ahí
   - Se sembró por primera vez el catálogo `plantas` (0002) — solo Pucusana con `sync_enabled=true`, las otras 5 son referencia sin sincronización real.
   - Se agregaron campos `acknowledged_at`/`acknowledged_by` a `alarmas_activas`, se habilitó Realtime sobre esa tabla, y se creó una política temporal anon (0003) — mismo patrón que Pucusana, con su propia reversión pendiente (0004).
   - Como no existe la función de sincronización Hub↔spoke todavía, se probó con datos de prueba insertados directo por SQL (`test_alarmas_hub.sql`).
+- **3-C**: Configurador de Umbrales por pozo (`ThresholdConfig.jsx`, Pucusana) — tabla agrupada por categoría con **todo** el catálogo de parámetros (no solo los 3 preconfigurados), edición inline, `upsert` en `well_parameters`, guardado fila por fila. Requirió una nueva política temporal anon de escritura (`0014`/`0015`, mismo patrón). Probado guardando un umbral real de Cloruros en Pozo 1 (valores de prueba: atención 3500, crítico 5000 mg/L — **revisar si esos números deben ajustarse a un criterio técnico real**, se usaron solo para validar que el guardado funciona).
 
 ---
 
 ## 5. Umbrales operativos definidos (well_parameters)
+
+Desde la Sesión 3-C existe `ThresholdConfig.jsx`, así que estos valores **ya no requieren editar SQL a mano** — se configuran desde la UI, por pozo, para cualquier parámetro del catálogo (no solo los que aparecen en esta tabla).
 
 | Parámetro | Dirección | Atención | Crítico | Estado |
 |---|---|---|---|---|
 | **TDS** | above | 18,750 mg/L | 25,000 mg/L | Definido (acuerdo temporal, 75% de 25,000) |
 | **CAUDAL_EXTRACCION** | above | `caudal_habitual_m3h` del pozo | `capacidad_nominal_bomba_m3h` del pozo | Definido, específico por pozo |
 | **NIVEL_AGUA** | above (napa más profunda = alerta) | — | — | PENDIENTE — sin valores numéricos aún |
+| **CLORUROS** (Pozo 1 / IRHS-776 únicamente) | above | 3,500 mg/L | 5,000 mg/L | **Valores de PRUEBA** (Sesión 3-C, solo para validar que el configurador guarda bien) — no confirmado como criterio técnico real, y no se replicó a Pozo 3 |
 | **CE** | — | — | — | No se usa directamente; se usa TDS como proxy. Ver sección 6 |
+| Resto del catálogo (Sulfatos, Sodio, Calcio, Turbidez, pH, Selenio, Nivel Estático/Dinámico) | — | — | — | Sin configurar — se puede hacer en cualquier momento desde `ThresholdConfig.jsx` |
 
 ---
 
 ## 6. Pendientes explícitos (nada bloqueante hoy, pero no perder de vista)
 
 1. **Revertir migraciones temporales anon** en cuanto exista Auth real, en AMBOS proyectos:
-   - Pucusana: `0007_revert_temp_dev_anon_read_only.sql` (revierte la 0006).
+   - Pucusana: `0007_revert_temp_dev_anon_read_only.sql` (revierte la 0006) y **`0015_revert_temp_dev_well_parameters_write_anon.sql`** (revierte la 0014, escritura de umbrales).
    - Hub: `0004_revert_temp_dev_anon_access.sql` (revierte la 0003).
 2. **Login / Supabase Auth** — pendiente en los DOS proyectos (Pucusana y Hub), cada uno con su propio esquema de `profiles`/roles ya definido, solo falta construir el flujo de login. Bloqueante real para: (a) que el formulario de caudal (1-A) pueda enviar datos de verdad, (b) que el botón "Reconocer" del Hub funcione con usuario real (hoy es anon), (c) poder cerrar el punto 1 sin romper ninguna de las dos apps.
 3. **Umbral de Nivel de Napa** — falta que Victor defina los valores numéricos (se descartó un margen de +2m/+5m sobre el nivel dinámico de referencia por falta de certeza técnica).
 4. **Factor de conversión CE↔TDS** — cuando se defina (para cuando el cliente pida ver CE en vez de TDS en las tarjetas KPI), migrar el umbral de la tarjeta de TDS a CE.
 5. **Dónde viven el formulario de caudal (1-A) y el panel de ingesta (1-D)** dentro de `OperatorLayout` — hoy están montados aparte en `main.jsx`, no integrados al layout final.
 6. **Vista dual de ambos pozos a la vez** (como muestra el prototipo del cliente) — hoy cada gráfico/tarjeta usa selector de un pozo a la vez. Decisión consciente de posponerlo.
-7. **`well_parameters` para el resto de parámetros** (Cloruros, Sulfatos, etc.) — solo TDS, CAUDAL_EXTRACCION y NIVEL_AGUA están sembrados; el resto del catálogo no tiene fila en `well_parameters`, por lo que el trigger de la 3-A no genera alertas para ellos todavía.
+7. **Valores de umbral para el resto del catálogo** (Sulfatos, Sodio, Calcio, Turbidez, pH, Selenio, Nivel Estático/Dinámico) — la herramienta para configurarlos ya existe (`ThresholdConfig.jsx`, Sesión 3-C), solo falta que Victor defina los valores técnicos correctos y los cargue. El de Cloruros en Pozo 1 es un valor de PRUEBA, no confirmado, y falta replicarlo (con el valor correcto) en Pozo 3.
 8. **Función de sincronización Hub↔spoke** — sigue sin existir. `alarmas_activas` y `planta_status` del Hub no se actualizan solas; hoy solo tienen los datos de prueba de la 3-B. Es la pieza que le daría sentido real al filtro por planta (hoy solo Pucusana tiene datos, y son de prueba).
 9. **Layout/shell propio del Hub** (análogo a `OperatorLayout` de Pucusana) — el panel de alarmas del Hub se monta solo, sin header/sidebar/topbar todavía.
 10. **Dataloggers de prueba** (`DL-TEST-01` en Pozo 1, `DL-TEST-02` en Pozo 3) — reemplazar por dispositivos reales cuando lleguen; sus API keys en claro **no se pueden recuperar** (solo quedó el hash en la base).
@@ -154,8 +159,8 @@ Ninguno de los dos se guardó dentro del repo Git — si se necesitan en una má
 
 Al momento de escribir esto, las opciones más lógicas para continuar son (en cualquier orden, según prioridad del negocio):
 - Función de sincronización Hub↔Pucusana (le daría datos reales al panel de alarmas de la 3-B, hoy solo con datos de prueba).
-- Sesión de Login/Auth (desbloquea 1-A, el botón "Reconocer" del Hub con usuario real, y permite cerrar los puntos pendientes #1).
-- Definir umbral de Nivel de Napa con Victor y sembrarlo.
+- Sesión de Login/Auth (desbloquea 1-A, el botón "Reconocer" del Hub y el guardado de umbrales de la 3-C con usuario real, y permite cerrar los puntos pendientes #1).
+- Definir con Victor los valores reales de umbral pendientes (Nivel de Napa, Cloruros definitivo, resto del catálogo) y cargarlos con `ThresholdConfig.jsx`.
 - Layout/shell propio del Hub (análogo a `OperatorLayout`).
 
 ---
