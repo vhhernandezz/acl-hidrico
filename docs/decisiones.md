@@ -2,7 +2,7 @@
 
 > Este documento consolida el historial de decisiones técnicas, convenciones y pendientes del proyecto, para que el desarrollo pueda continuar sin pérdida de contexto — incluyendo desde una máquina nueva o una sesión de chat nueva (que no tiene memoria de conversaciones anteriores).
 >
-> Última actualización: tras cerrar la Sesión 3-C (configurador de umbrales por pozo).
+> Última actualización: tras cerrar la Sesión 3-D (notificación por email en alarmas críticas).
 
 ---
 
@@ -17,7 +17,8 @@
 - Frontend: React + Vite, monorepo con **npm workspaces** (no pnpm ni Turborepo).
 - Backend: Supabase (Postgres + Auth + Realtime + Edge Functions).
 - Gráficos: Recharts.
-- Despliegue: Vercel, **un proyecto por app** (hub, pucusana, etc.).
+- Email transaccional: Resend.
+- Despliegue: Vercel, **un proyecto por app** (hub, pucusana, etc.) — pendiente de configurar realmente, hasta ahora todo corre en local (`localhost`).
 - Repo: GitHub, `vhhernandezz/acl-hidrico`, un solo repositorio para todo (Hub + todos los spokes + frontend).
 
 ---
@@ -27,8 +28,8 @@
 ```
 acl-hidrico/
 ├── apps/
-│   ├── hub/                    ← dashboard corporativo (placeholder, no desarrollado aún)
-│   ├── pucusana/                ← spoke Pucusana (activo, en desarrollo)
+│   ├── hub/                    ← app del Hub (bootstrapeada en la 3-B, puerto 5175)
+│   ├── pucusana/                ← spoke Pucusana (activo, en desarrollo, puerto 5174)
 │   └── zarate/                  ← reservado, vacío
 ├── packages/
 │   ├── core/                    ← compartido por todas las apps (componentes, hooks, lib genéricos)
@@ -40,76 +41,83 @@ acl-hidrico/
 │   ├── pucusana/
 │   │   └── supabase/            ← ⚠️ carpeta anidada, ver nota abajo
 │   │       ├── config.toml
-│   │       ├── migrations/      ← 0001 a 0013 (ver sección 4)
+│   │       ├── migrations/      ← 0001 a 0015
 │   │       └── functions/
 │   │           └── datalogger-ingest/
 │   └── hub/
-│       └── supabase/            ← misma estructura anidada, aún sin migraciones propias más allá de 0001-0002
+│       └── supabase/            ← misma estructura anidada
+│           ├── config.toml
+│           ├── migrations/      ← 0001 a 0005
+│           └── functions/
+│               └── notify/
 └── docs/
     └── decisiones.md            ← este archivo
 ```
 
-**⚠️ Nota importante sobre la carpeta anidada `supabase/pucusana/supabase/`:** el Supabase CLI exige que exista una carpeta literalmente llamada `supabase/` (con `config.toml`, `migrations/`, `functions/`) **relativa a donde se ejecuta el comando**. Como organizamos el repo con `supabase/pucusana/` y `supabase/hub/` para separar los proyectos, tuvimos que anidar una carpeta `supabase/` más adentro de cada una. Es intencional, no un error — no la "simplifiques" quitando el anidamiento o el CLI deja de encontrar los archivos.
+**⚠️ Nota importante sobre la carpeta anidada `supabase/pucusana/supabase/` y `supabase/hub/supabase/`:** el Supabase CLI exige que exista una carpeta literalmente llamada `supabase/` (con `config.toml`, `migrations/`, `functions/`) **relativa a donde se ejecuta el comando**. Como organizamos el repo con `supabase/pucusana/` y `supabase/hub/` para separar los proyectos, tuvimos que anidar una carpeta `supabase/` más adentro de cada una. Es intencional, no un error.
 
-Para correr comandos del CLI sobre Pucusana: `cd supabase/pucusana` y desde ahí `supabase link`, `supabase functions deploy`, etc.
+Para correr comandos del CLI: `cd supabase/pucusana` (o `supabase/hub`) y desde ahí `supabase link`, `supabase functions deploy`, etc. En la laptop, todos estos comandos llevan el prefijo `npx` (ver sección 10).
+
+**Si un proyecto nunca corrió `supabase init`**, la carpeta `supabase/` anidada con `config.toml` puede no existir todavía aunque ya tengas migraciones ahí copiadas a mano — hay que correr `supabase init` (o `npx supabase init`) parado en esa carpeta para que se genere `config.toml`, que es indispensable para `functions deploy`.
 
 ---
 
 ## 3. Convenciones establecidas
 
 - **Nomenclatura de pozos:** el nombre oficial que usa la planta es **"Pozo 1"** y **"Pozo 3"** (no "Pozo 2", aunque la ficha técnica AWS los llama así). Código único: `IRHS-776` (Pozo 1) e `IRHS-777` (Pozo 3).
-- **Coordenadas:** UTM (Norte/Este, zona 18S, datum WGS84), NO lat/long decimal — así quedó ajustado el esquema (migración 0002).
+- **Coordenadas:** UTM (Norte/Este, zona 18S, datum WGS84), NO lat/long decimal.
 - **Roles de usuario (spoke):** `admin`, `director_tecnico`, `operador_planta`, `visor`. El operador puede insertar lecturas pero no editarlas ni borrarlas.
 - **Roles del Hub:** simplificado a `admin` y `visor`.
 - **Fuente de datos (`readings.source`):** `manual`, `sensor`, `carga_masiva`, `laboratorio`.
-- **Naming de tabla de alertas:** en Pucusana se llama `alerts` (inglés); en el Hub se llama `alarmas_activas` (español). Inconsistencia heredada de las primeras sesiones — no bloquea nada, pero si se unifica en el futuro, documentarlo aquí.
-- **Paleta visual:** teal/aqua sobre fondo arena (NO el tema oscuro del prototipo `ACL_Hidrico_Prototipo_v2.html` que el cliente ya vio — se decidió mantener la paleta clara por ahora, sesión 2-D).
-- **Convención de commits:** `tipo(alcance): descripción` estilo Conventional Commits, ej. `feat(pucusana): agrega gráfico de CE`.
+- **Naming de tabla de alertas:** en Pucusana se llama `alerts` (inglés); en el Hub se llama `alarmas_activas` (español). Inconsistencia heredada, no bloquea nada.
+- **Paleta visual:** teal/aqua sobre fondo arena (NO el tema oscuro del prototipo del cliente — se mantiene paleta clara por ahora).
+- **Convención de commits:** `tipo(alcance): descripción` estilo Conventional Commits.
+- **Secretos que nunca van a git:** cuando un valor secreto (API key, webhook secret) tiene que aparecer en una migración SQL por necesidad técnica, se deja un **placeholder** en el archivo versionado (ej. `REEMPLAZA_AQUI_TU_WEBHOOK_SECRET`), y el valor real solo se pega directo en el SQL Editor al momento de ejecutar — nunca se guarda de vuelta en el archivo del repo con el valor real.
 
 ---
 
 ## 4. Historial de sesiones completadas
 
 ### Fase 0 — Fundaciones
-- **0-A**: Esquema SQL completo del spoke Pucusana (tablas, tipos, índices, RLS). *(migración 0001)*
+- **0-A**: Esquema SQL completo del spoke Pucusana (tablas, tipos, índices, RLS).
 - **0-B**: Esquema SQL del Hub corporativo (`plantas`, `planta_status`, `alarmas_activas` + función de agregación).
-- **0-C**: Estructura del monorepo (`apps/`, `packages/`, `README.md` con convenciones).
+- **0-C**: Estructura del monorepo (`apps/`, `packages/`, `README.md` con convenciones, incluyendo atajos `dev:pucusana` y `dev:hub` en el `package.json` raíz).
 
 ### Fase 1 — Ingesta de datos (Pucusana)
-- **1-A**: Formulario de ingreso manual de caudal (`CaudalReadingForm.jsx`). **Bloqueado para envío real** — funciona visualmente pero el submit requiere sesión de Supabase Auth, que aún no existe.
-- **1-B**: Endpoint de ingesta de datalogger (`Edge Function datalogger-ingest`), recibe CE + nivel, valida, autentica por API key propio (tabla `dataloggers`). **Probado en producción con éxito.**
-- **1-C**: Carga histórica de TDS/Cloruros/etc. 2014-2025 (924 lecturas), parseada desde Excel del cliente. Migración 0005. No se implementó como script reutilizable (fue de un solo uso) — decisión consciente, suficiente por ahora.
-- **1-D**: Panel de estado de ingesta con semáforo de **recencia** (`IngestionStatusPanel.jsx` + vista `latest_readings_status`, migración 0010).
+- **1-A**: Formulario de ingreso manual de caudal (`CaudalReadingForm.jsx`). **Bloqueado para envío real** — requiere sesión de Supabase Auth, que aún no existe.
+- **1-B**: Endpoint de ingesta de datalogger (`Edge Function datalogger-ingest`), CE + nivel, autenticado por API key propio (tabla `dataloggers`). Probado en producción.
+- **1-C**: Carga histórica de TDS/Cloruros/etc. 2014-2025 (924 lecturas), parseada desde Excel del cliente.
+- **1-D**: Panel de estado de ingesta con semáforo de **recencia** (`IngestionStatusPanel.jsx` + vista `latest_readings_status`).
 
 ### Fase 2 — Dashboard operador (Pucusana)
-- **2-A**: Gráfico de CE horaria con Recharts + Supabase Realtime (`CEHourlyChart.jsx`). Requirió habilitar Realtime sobre `readings` (migración 0011) y desactivar verificación JWT en la Edge Function (`verify_jwt = false` en `config.toml`).
-- **2-B**: Gráficos de Nivel de Napa + Caudal de Extracción, mismo patrón, componentes genéricos reutilizables (`ParameterHourlyChart.jsx`, `useParameterHourlyData.js`), ensamblados en `OperationalCharts.jsx`.
-- **2-C**: Tarjetas KPI del operador (`OperatorKPICards.jsx`) — TDS, Nivel, Caudal con semáforo de **umbral operativo** (distinto del semáforo de recencia de 1-D). Requirió poblar `well_parameters` por primera vez (migración 0012).
-- **2-D**: Layout final del operador (`OperatorLayout.jsx`) — header + sidebar + topbar, ensamblando 2-A/2-B/2-C. Estructura fiel al prototipo aprobado por el cliente, pero en paleta clara y con selector de pozo (no vista dual). Sidebar con ítems no construidos como bloqueados (Alertas, Análisis y modelo, Datos crudos, otras 5 plantas). Corrección posterior: "Chiclayo" → "Iquitos", orden alfabético.
+- **2-A**: Gráfico de CE horaria con Recharts + Supabase Realtime (`CEHourlyChart.jsx`).
+- **2-B**: Gráficos de Nivel de Napa + Caudal de Extracción (`OperationalCharts.jsx`, componentes genéricos reutilizables).
+- **2-C**: Tarjetas KPI del operador (`OperatorKPICards.jsx`) — TDS, Nivel, Caudal con semáforo de **umbral operativo**.
+- **2-D**: Layout final del operador (`OperatorLayout.jsx`) — header + sidebar + topbar, fiel al prototipo del cliente pero en paleta clara y con selector de pozo.
 
 ### Fase 3 — Alertas
-- **3-A**: Función + trigger `evaluate_reading_threshold()` (migración 0013) — evalúa cada lectura nueva contra `well_parameters` y gestiona el ciclo de vida completo en `alerts`: crea, escala/actualiza, o resuelve automáticamente. Probado en producción con éxito (TDS crítico → resuelto).
-- **3-B**: Panel de Alarmas Activas del **Hub** (`AlarmasActivasPanel.jsx`), con filtro por planta y nivel, y botón "Reconocer" (Realtime). Esta sesión resultó mucho más grande de lo esperado porque:
-  - `apps/hub` nunca se había bootstrapeado (no existía `package.json`, `vite.config.js`, `main.jsx`, cliente Supabase — nada). Se creó todo desde cero, puerto 5175.
-  - El proyecto Supabase del Hub **nunca se había creado realmente**, y la migración `0001_schema_hub.sql` de la Sesión 0-B **nunca se subió a GitHub** — se reconstruyó desde el historial de la conversación y se subió recién en esta sesión.
-  - Se sembró por primera vez el catálogo `plantas` (0002) — solo Pucusana con `sync_enabled=true`, las otras 5 son referencia sin sincronización real.
-  - Se agregaron campos `acknowledged_at`/`acknowledged_by` a `alarmas_activas`, se habilitó Realtime sobre esa tabla, y se creó una política temporal anon (0003) — mismo patrón que Pucusana, con su propia reversión pendiente (0004).
-  - Como no existe la función de sincronización Hub↔spoke todavía, se probó con datos de prueba insertados directo por SQL (`test_alarmas_hub.sql`).
-- **3-C**: Configurador de Umbrales por pozo (`ThresholdConfig.jsx`, Pucusana) — tabla agrupada por categoría con **todo** el catálogo de parámetros (no solo los 3 preconfigurados), edición inline, `upsert` en `well_parameters`, guardado fila por fila. Requirió una nueva política temporal anon de escritura (`0014`/`0015`, mismo patrón). Probado guardando un umbral real de Cloruros en Pozo 1 (valores de prueba: atención 3500, crítico 5000 mg/L — **revisar si esos números deben ajustarse a un criterio técnico real**, se usaron solo para validar que el guardado funciona).
+- **3-A**: Función + trigger `evaluate_reading_threshold()` — evalúa cada lectura nueva contra `well_parameters` y gestiona el ciclo de vida completo en `alerts` (crear/escalar/resolver automático).
+- **3-B**: Panel de Alarmas Activas del **Hub** (`AlarmasActivasPanel.jsx`), filtro por planta y nivel, botón "Reconocer" con Realtime. Bootstrap completo de `apps/hub` desde cero (nunca había existido), reconstrucción del esquema `0001_schema_hub.sql` (nunca se había subido a GitHub ni ejecutado en un proyecto real), seed del catálogo `plantas`.
+- **3-C**: Configurador de Umbrales por pozo (`ThresholdConfig.jsx`, Pucusana) — tabla con todo el catálogo de parámetros, `upsert` en `well_parameters`, guardado fila por fila. Probado con Cloruros en Pozo 1 (valores de PRUEBA, no técnicos: atención 3500, crítico 5000 mg/L).
+- **3-D**: Notificación por email (`Edge Function notify`, Hub) — envía correo vía Resend cuando una alarma **se vuelve** crítica (no cuando ya lo era, para no duplicar al reconocer). Sesión con bastante fricción de infraestructura:
+  - El **Database Webhook nativo del Dashboard de Supabase falló** con `ERROR: 3F000: schema "supabase_functions" does not exist` (bug conocido de la plataforma, no de nuestro código). Se resolvió con una **alternativa por SQL directo**: un trigger que llama a `pg_net.http_post()` manualmente, reproduciendo el mismo payload que hubiera mandado el webhook nativo (migración `0005_notify_webhook_trigger.sql`).
+  - Se intentó guardar el secreto del webhook con `alter database postgres set app.settings.webhook_secret = '...'` — **Supabase no permite esto** (`ERROR: 42501: permission denied`, requiere superusuario, que no tenemos en el plan hosted). Se resolvió embebiendo el secreto directo en la función, con un placeholder en el archivo versionado (ver convención en sección 3).
+  - Se agregó el atajo `npm run dev:hub` al `package.json` raíz (ya existía sin que lo recordáramos — cuidado con revisar antes de agregar algo "nuevo").
+  - Confirmado en producción: alarma crítica → llega correo (a spam, esperable por usar el dominio compartido `onboarding@resend.dev` sin dominio propio verificado); reconocer esa misma alarma → NO llega un segundo correo.
 
 ---
 
 ## 5. Umbrales operativos definidos (well_parameters)
 
-Desde la Sesión 3-C existe `ThresholdConfig.jsx`, así que estos valores **ya no requieren editar SQL a mano** — se configuran desde la UI, por pozo, para cualquier parámetro del catálogo (no solo los que aparecen en esta tabla).
+Desde la Sesión 3-C existe `ThresholdConfig.jsx`, así que estos valores **ya no requieren editar SQL a mano** — se configuran desde la UI, por pozo, para cualquier parámetro del catálogo.
 
 | Parámetro | Dirección | Atención | Crítico | Estado |
 |---|---|---|---|---|
 | **TDS** | above | 18,750 mg/L | 25,000 mg/L | Definido (acuerdo temporal, 75% de 25,000) |
 | **CAUDAL_EXTRACCION** | above | `caudal_habitual_m3h` del pozo | `capacidad_nominal_bomba_m3h` del pozo | Definido, específico por pozo |
 | **NIVEL_AGUA** | above (napa más profunda = alerta) | — | — | PENDIENTE — sin valores numéricos aún |
-| **CLORUROS** (Pozo 1 / IRHS-776 únicamente) | above | 3,500 mg/L | 5,000 mg/L | **Valores de PRUEBA** (Sesión 3-C, solo para validar que el configurador guarda bien) — no confirmado como criterio técnico real, y no se replicó a Pozo 3 |
-| **CE** | — | — | — | No se usa directamente; se usa TDS como proxy. Ver sección 6 |
+| **CLORUROS** (Pozo 1 / IRHS-776 únicamente) | above | 3,500 mg/L | 5,000 mg/L | **Valores de PRUEBA** (Sesión 3-C, solo para validar el configurador) — no confirmado como criterio técnico real, y no se replicó a Pozo 3 |
+| **CE** | — | — | — | No se usa directamente; se usa TDS como proxy. |
 | Resto del catálogo (Sulfatos, Sodio, Calcio, Turbidez, pH, Selenio, Nivel Estático/Dinámico) | — | — | — | Sin configurar — se puede hacer en cualquier momento desde `ThresholdConfig.jsx` |
 
 ---
@@ -117,19 +125,21 @@ Desde la Sesión 3-C existe `ThresholdConfig.jsx`, así que estos valores **ya n
 ## 6. Pendientes explícitos (nada bloqueante hoy, pero no perder de vista)
 
 1. **Revertir migraciones temporales anon** en cuanto exista Auth real, en AMBOS proyectos:
-   - Pucusana: `0007_revert_temp_dev_anon_read_only.sql` (revierte la 0006) y **`0015_revert_temp_dev_well_parameters_write_anon.sql`** (revierte la 0014, escritura de umbrales).
+   - Pucusana: `0007_revert_temp_dev_anon_read_only.sql` (revierte la 0006, lectura) y `0015_revert_temp_dev_well_parameters_write_anon.sql` (revierte la 0014, escritura de umbrales).
    - Hub: `0004_revert_temp_dev_anon_access.sql` (revierte la 0003).
-2. **Login / Supabase Auth** — pendiente en los DOS proyectos (Pucusana y Hub), cada uno con su propio esquema de `profiles`/roles ya definido, solo falta construir el flujo de login. Bloqueante real para: (a) que el formulario de caudal (1-A) pueda enviar datos de verdad, (b) que el botón "Reconocer" del Hub funcione con usuario real (hoy es anon), (c) poder cerrar el punto 1 sin romper ninguna de las dos apps.
-3. **Umbral de Nivel de Napa** — falta que Victor defina los valores numéricos (se descartó un margen de +2m/+5m sobre el nivel dinámico de referencia por falta de certeza técnica).
-4. **Factor de conversión CE↔TDS** — cuando se defina (para cuando el cliente pida ver CE en vez de TDS en las tarjetas KPI), migrar el umbral de la tarjeta de TDS a CE.
-5. **Dónde viven el formulario de caudal (1-A) y el panel de ingesta (1-D)** dentro de `OperatorLayout` — hoy están montados aparte en `main.jsx`, no integrados al layout final.
-6. **Vista dual de ambos pozos a la vez** (como muestra el prototipo del cliente) — hoy cada gráfico/tarjeta usa selector de un pozo a la vez. Decisión consciente de posponerlo.
-7. **Valores de umbral para el resto del catálogo** (Sulfatos, Sodio, Calcio, Turbidez, pH, Selenio, Nivel Estático/Dinámico) — la herramienta para configurarlos ya existe (`ThresholdConfig.jsx`, Sesión 3-C), solo falta que Victor defina los valores técnicos correctos y los cargue. El de Cloruros en Pozo 1 es un valor de PRUEBA, no confirmado, y falta replicarlo (con el valor correcto) en Pozo 3.
-8. **Función de sincronización Hub↔spoke** — sigue sin existir. `alarmas_activas` y `planta_status` del Hub no se actualizan solas; hoy solo tienen los datos de prueba de la 3-B. Es la pieza que le daría sentido real al filtro por planta (hoy solo Pucusana tiene datos, y son de prueba).
-9. **Layout/shell propio del Hub** (análogo a `OperatorLayout` de Pucusana) — el panel de alarmas del Hub se monta solo, sin header/sidebar/topbar todavía.
-10. **Dataloggers de prueba** (`DL-TEST-01` en Pozo 1, `DL-TEST-02` en Pozo 3) — reemplazar por dispositivos reales cuando lleguen; sus API keys en claro **no se pueden recuperar** (solo quedó el hash en la base).
-11. **Selenio Total histórico** — existe en el Excel del cliente en una sección aparte con fechas parcialmente solapadas; no se cargó por riesgo de duplicados. Pendiente si se necesita.
-12. **Consolidar nomenclatura `alerts` (Pucusana) vs `alarmas_activas` (Hub)** — cosmético, no urgente.
+2. **Login / Supabase Auth** — pendiente en los DOS proyectos. Bloqueante real para: (a) que el formulario de caudal (1-A) pueda enviar datos de verdad, (b) que el botón "Reconocer" del Hub y el guardado de umbrales (3-C) funcionen con usuario real (hoy son anon), (c) poder cerrar el punto 1 sin romper ninguna app.
+3. **Umbral de Nivel de Napa** — falta que Victor defina los valores numéricos.
+4. **Factor de conversión CE↔TDS** — cuando se defina, migrar el umbral de la tarjeta de TDS a CE.
+5. **Dónde viven el formulario de caudal (1-A), el panel de ingesta (1-D) y el configurador de umbrales (3-C)** dentro de `OperatorLayout` — hoy están montados aparte en `main.jsx`, no integrados al layout final.
+6. **Vista dual de ambos pozos a la vez** (como muestra el prototipo del cliente) — hoy cada gráfico/tarjeta usa selector de un pozo a la vez.
+7. **Valores de umbral para el resto del catálogo** — la herramienta ya existe (3-C), falta que Victor defina los valores técnicos correctos. El de Cloruros en Pozo 1 es de PRUEBA, falta replicarlo (con valor correcto) en Pozo 3.
+8. **Función de sincronización Hub↔spoke** — sigue sin existir. `alarmas_activas` y `planta_status` del Hub no se actualizan solas; hoy solo tienen datos de prueba insertados a mano. Sin esto, las alarmas reales de Pucusana (generadas por el trigger de la 3-A) nunca llegan al Hub, y por lo tanto tampoco disparan el email de la 3-D en la vida real.
+9. **Layout/shell propio del Hub** (análogo a `OperatorLayout`) — el panel de alarmas y cualquier futuro componente del Hub se montan solos, sin header/sidebar/topbar.
+10. **Dominio propio verificado en Resend** — hoy los correos salen de `onboarding@resend.dev` y caen en spam. Verificar un dominio (ej. `acl-hidrico.pe`) resolvería esto para producción.
+11. **"Reconocedor asignado" real** — la 3-D usa un correo único fijo (`NOTIFY_EMAIL_TO`) para todas las alarmas, como decisión consciente de simplicidad. Falta diseñar cómo se asigna un responsable real (¿por planta? ¿por rol?) cuando haga falta.
+12. **Dataloggers de prueba** (`DL-TEST-01`/`DL-TEST-02`) — reemplazar por dispositivos reales cuando lleguen.
+13. **Selenio Total histórico** — pendiente si se necesita cargarlo (riesgo de duplicados con el dataset ya cargado).
+14. **Consolidar nomenclatura `alerts` (Pucusana) vs `alarmas_activas` (Hub)** — cosmético, no urgente.
 
 ---
 
@@ -137,46 +147,52 @@ Desde la Sesión 3-C existe `ThresholdConfig.jsx`, así que estos valores **ya n
 
 | Secreto | Dónde vive | Notas |
 |---|---|---|
-| `apps/pucusana/.env` (Supabase URL + anon key) | Local en cada máquina de desarrollo, gitignored | Copiar manualmente entre máquinas |
-| `apps/hub/.env` (Supabase URL + anon key — proyecto DISTINTO al de Pucusana) | Local en cada máquina de desarrollo, gitignored | Ídem — creado por primera vez en la Sesión 3-B |
-| Sesión de `supabase login` | Local, por máquina | Se re-autentica con el navegador en cada máquina nueva |
-| PAT de GitHub embebido en el remoto git | Local, por máquina — **solo desktop** | `git remote set-url` con el PAT. En la laptop se usa Git Credential Manager (login vía navegador) en vez de esto — ver sección 10 |
+| `apps/pucusana/.env` (Supabase URL + anon key) | Local en cada máquina, gitignored | Copiar manualmente entre máquinas |
+| `apps/hub/.env` (Supabase URL + anon key — proyecto DISTINTO al de Pucusana) | Local en cada máquina, gitignored | Ídem |
+| Sesión de `supabase login` (o `npx supabase login` en la laptop) | Local, por máquina | Se re-autentica con el navegador en cada máquina nueva |
+| PAT de GitHub embebido en el remoto git | Local, por máquina — **solo desktop** | La laptop usa Git Credential Manager (login vía navegador) en vez de esto |
 | API keys de `DL-TEST-01` / `DL-TEST-02` | Perdidas si no se guardaron aparte — solo el hash SHA-256 vive en la tabla `dataloggers` | Si se necesitan, regenerar y actualizar el hash con `UPDATE` |
 | Contraseña de la base de datos Postgres (Pucusana/Hub) | La que se configuró al crear cada proyecto Supabase | Necesaria para `supabase link` en máquinas nuevas |
+| `RESEND_API_KEY`, `NOTIFY_EMAIL_TO`, `WEBHOOK_SECRET` | Supabase Secrets del proyecto Hub (`supabase secrets set`) | No recuperables una vez guardados — si se pierden, regenerar y volver a `secrets set` |
+| Valor real de `WEBHOOK_SECRET` embebido en la función `trigger_notify_critical_alarm` | Solo dentro de la base de datos del Hub (ejecutado una vez en SQL Editor) | El archivo `0005_notify_webhook_trigger.sql` en git tiene un PLACEHOLDER, no el valor real |
 
 ---
 
-## 8. Scripts de utilidad (no versionados en el repo)
+## 8. Scripts de utilidad y SQL de prueba (no versionados en el repo)
 
-- **`simulate_datalogger.sh`** — simula varias lecturas de CE/nivel distribuidas en las últimas horas, para poblar gráficos de prueba. Requiere el API key en claro de un datalogger registrado.
-- **`test_caudal_readings.sql`** — inserta lecturas de caudal de prueba directo por SQL (bypassa RLS/Auth), útil mientras no exista login.
+- **`simulate_datalogger.sh`** — simula varias lecturas de CE/nivel distribuidas en las últimas horas.
+- **`test_caudal_readings.sql`** — inserta lecturas de caudal de prueba directo por SQL.
+- **`test_alarmas_hub.sql`** — inserta alarmas de prueba en `alarmas_activas` del Hub.
 
-Ninguno de los dos se guardó dentro del repo Git — si se necesitan en una máquina nueva, hay que volver a generarlos o copiarlos manualmente.
+Ninguno se guardó dentro del repo Git — si se necesitan en una máquina nueva, hay que regenerarlos o copiarlos manualmente.
 
 ---
 
 ## 9. Próxima sesión sugerida
 
-Al momento de escribir esto, las opciones más lógicas para continuar son (en cualquier orden, según prioridad del negocio):
-- Función de sincronización Hub↔Pucusana (le daría datos reales al panel de alarmas de la 3-B, hoy solo con datos de prueba).
-- Sesión de Login/Auth (desbloquea 1-A, el botón "Reconocer" del Hub y el guardado de umbrales de la 3-C con usuario real, y permite cerrar los puntos pendientes #1).
-- Definir con Victor los valores reales de umbral pendientes (Nivel de Napa, Cloruros definitivo, resto del catálogo) y cargarlos con `ThresholdConfig.jsx`.
+- Función de sincronización Hub↔Pucusana (le daría datos reales a los paneles/notificaciones del Hub, hoy solo con datos de prueba).
+- Sesión de Login/Auth (desbloquea 1-A, "Reconocer", guardado de umbrales, y permite cerrar los puntos pendientes de RLS temporal).
+- Definir con Victor los valores reales de umbral pendientes (Nivel de Napa, Cloruros definitivo, resto del catálogo).
 - Layout/shell propio del Hub (análogo a `OperatorLayout`).
+- Verificar dominio propio en Resend para que los correos no caigan en spam.
 
 ---
 
 ## 10. Trabajo en dos máquinas (desktop + laptop)
 
-A partir de la Sesión 3-A, el desarrollo continúa alternando entre una desktop y una laptop (viaje de un mes). Lecciones y configuración específica:
-
-**Regla de oro: `git push` al final de cada sesión de trabajo, sin excepción.** El primer intento de sincronizar la laptop falló porque varias sesiones (2-D, 3-A) se habían quedado solo en la desktop, sin subir — la laptop clonó una versión vieja del repo y por eso no aparecía `OperatorLayout.jsx`. Si cada sesión termina con `git push`, la otra máquina siempre puede ponerse al día con un simple `git pull`.
+**Regla de oro: `git push` al final de cada sesión de trabajo, sin excepción.** Ya causó un problema real una vez (sesiones 2-D y 3-A se habían quedado solo en la desktop).
 
 **Diferencias de configuración entre máquinas (normal, no es un problema):**
-- **Supabase CLI**: en la desktop se instaló vía **Scoop**. En la laptop, Scoop falló repetidamente al clonar su propio repo base (`error: unable to stat just-written file test/fixtures/decompress/TestCases.zip`, probablemente interferencia de antivirus/OneDrive) — se resolvió instalándolo vía **npm** en su lugar: `npm install -D supabase`, y usando `npx supabase ...` en vez de `supabase ...` directo. Como quedó como `devDependency` en `package.json`, la próxima vez que la desktop haga `npm install` también lo va a tener disponible.
-- **Autenticación de GitHub**: en la desktop se configuró con un Personal Access Token (PAT) embebido en la URL del remoto (`git remote set-url` con el token). En la laptop, en cambio, `git push` disparó el flujo de **Git Credential Manager** (login vía navegador) — funciona igual de bien y es más seguro; no hace falta replicar el método del PAT ahí.
-- **`.env` de `apps/pucusana`**: no viaja con git (está en `.gitignore`). Se recreó manualmente en la laptop con los mismos valores de URL/anon key que la desktop.
+- **Supabase CLI**: desktop usa **Scoop**. La laptop no pudo (Scoop fallaba repetidamente clonando su propio repo base — probablemente antivirus/OneDrive) y se resolvió instalándolo vía **npm**: `npm install -D supabase`, usando **`npx supabase ...`** en vez de `supabase ...` en TODOS los comandos del CLI en la laptop (incluyendo `secrets set`, `functions deploy`, etc.).
+- **Autenticación de GitHub**: desktop usa un PAT embebido en la URL del remoto. La laptop usa Git Credential Manager (login vía navegador).
+- **`.env`** de cada app: no viaja con git, se recrea manualmente en cada máquina.
 
-**Conflictos de merge esperables:** si ambas máquinas corren `npm install` de forma independiente entre sesiones, `package-lock.json` puede entrar en conflicto al hacer `git pull` (ya pasó una vez). La solución simple y segura: **nunca editar `package-lock.json` a mano** — en un conflicto, borrarlo (`rm package-lock.json`), correr `npm install` para regenerarlo, y luego `git add` + commit para cerrar el merge. `package.json` sí puede (y debe) fusionarse normalmente si el conflicto llega a tocarlo.
+**Conflictos de merge esperables en `package-lock.json`:** nunca editarlo a mano — en un conflicto, borrarlo, correr `npm install` para regenerarlo, y commitear. `package.json` sí se fusiona normalmente.
 
-**Lección de la Sesión 3-B — verificar, no asumir, que un archivo llegó a GitHub:** la migración `0001_schema_hub.sql` de la Sesión 0-B se generó en el chat, pero nunca se confirmó explícitamente que se hubiera copiado al repo y subido — y en efecto, no estaba. Se descubrió varias sesiones después, a mitad de la 3-B, cuando hacía falta ese archivo para poder crear el proyecto Supabase del Hub. Iguales para `docs/decisiones.md` la primera vez (se quedó como descarga suelta, nunca llegó al repo). Regla práctica: después de que el chat entregue un archivo para descargar, el paso "cópialo a tu repo y haz `git add`/`commit`/`push`" no está completo hasta que lo confirmes viéndolo en GitHub.com — no basta con haberlo descargado.
+**Lección — verificar, no asumir, que un archivo llegó a GitHub:** varias veces un archivo generado en el chat (la migración `0001_schema_hub.sql`, y `docs/decisiones.md` la primera vez) se quedó solo como descarga suelta, sin llegar nunca al repo. Regla práctica: el paso "cópialo a tu repo y haz `git add`/`commit`/`push`" no está completo hasta que lo confirmes viéndolo en GitHub.com.
 
+**Lección — cuidado al pegar instrucciones multilínea en archivos de configuración (`.toml`, `.json`):** más de una vez una instrucción de "agrega estas dos líneas" terminó pegada en una sola línea (ej. `[functions.notify] verify_jwt = false` en vez de dos líneas separadas), rompiendo el formato del archivo. Siempre revisar que cada línea quedó en su propio renglón antes de guardar.
+
+**Límites de la plataforma Supabase descubiertos en la Sesión 3-D (aplican a cualquier máquina):**
+- El Database Webhook nativo del Dashboard puede fallar con un bug de plataforma (`schema "supabase_functions" does not exist`) — la alternativa confiable es un trigger SQL manual con `pg_net.http_post()`.
+- No se puede usar `ALTER DATABASE ... SET app.settings.xxx` en Supabase hosted (requiere superusuario) — para pasar un secreto a una función de trigger, hay que embeberlo directo en la función (con la convención de placeholder de la sección 3), no vía variables de sesión de Postgres.
