@@ -2,7 +2,7 @@
 
 > Este documento consolida el historial de decisiones técnicas, convenciones y pendientes del proyecto, para que el desarrollo pueda continuar sin pérdida de contexto — incluyendo desde una máquina nueva o una sesión de chat nueva (que no tiene memoria de conversaciones anteriores).
 >
-> Última actualización: tras cerrar la Sesión 3-D (notificación por email en alarmas críticas).
+> Última actualización: tras cerrar la Sesión 4-A (gráfico histórico de TDS), con una limitación de red pendiente de reprobar.
 
 ---
 
@@ -105,6 +105,14 @@ Para correr comandos del CLI: `cd supabase/pucusana` (o `supabase/hub`) y desde 
   - Se agregó el atajo `npm run dev:hub` al `package.json` raíz (ya existía sin que lo recordáramos — cuidado con revisar antes de agregar algo "nuevo").
   - Confirmado en producción: alarma crítica → llega correo (a spam, esperable por usar el dominio compartido `onboarding@resend.dev` sin dominio propio verificado); reconocer esa misma alarma → NO llega un segundo correo.
 
+### Fase 4 — Análisis histórico
+- **4-A**: Gráfico histórico de TDS 2014-2025 (`HistoricalChart.jsx`, Pucusana) — selector de pozo, 4 presets de rango (Todo/5a/2a/1a) + rango personalizado, líneas de referencia de umbral (atención/crítico) superpuestas usando los valores ya configurados en `well_parameters`. Sin migraciones nuevas, reutiliza datos existentes.
+  - **Hallazgo de red sin resolver, específico de la laptop de viaje:** los presets de rango (todo menos "Todo") se quedan colgados indefinidamente en "Cargando serie", sin error visible. Diagnóstico exhaustivo confirmó que el código y los datos están correctos:
+    - La query equivalente corre instantánea en el SQL Editor de Supabase.
+    - La misma petición HTTP hecha con `curl` (bypasseando el navegador) responde en <1 segundo.
+    - Falla igual en modo incógnito (descarta extensiones) y en dos navegadores distintos (Edge y Chrome).
+    - Conclusión: algo a nivel de sistema/red en esta laptop de viaje intercepta específicamente peticiones de navegador con ciertos parámetros de query (posiblemente el mismo tipo de interferencia de antivirus/proxy corporativo que causó el problema de Scoop al inicio del viaje), pero no afecta llamadas directas por `curl`. **Pendiente: reprobar esta misma prueba (presets de rango) cuando Victor esté de vuelta en su red habitual**, para confirmar si el problema desaparece fuera de esta conexión de viaje.
+
 ---
 
 ## 5. Umbrales operativos definidos (well_parameters)
@@ -140,6 +148,7 @@ Desde la Sesión 3-C existe `ThresholdConfig.jsx`, así que estos valores **ya n
 12. **Dataloggers de prueba** (`DL-TEST-01`/`DL-TEST-02`) — reemplazar por dispositivos reales cuando lleguen.
 13. **Selenio Total histórico** — pendiente si se necesita cargarlo (riesgo de duplicados con el dataset ya cargado).
 14. **Consolidar nomenclatura `alerts` (Pucusana) vs `alarmas_activas` (Hub)** — cosmético, no urgente.
+15. **Reprobar los presets de rango de `HistoricalChart.jsx` (Sesión 4-A) fuera de la red de viaje** — funcionalmente el código está verificado correcto (SQL Editor + `curl` exitosos), pero nunca se confirmó visualmente en el navegador por una interferencia de red/sistema en la laptop de viaje. Si el problema persiste también en la red habitual, ahí sí habría que investigar más a fondo (por ejemplo, revisar si supabase-js agrega algo distinto a la petición que un antivirus/proxy esté bloqueando específicamente).
 
 ---
 
@@ -175,6 +184,7 @@ Ninguno se guardó dentro del repo Git — si se necesitan en una máquina nueva
 - Definir con Victor los valores reales de umbral pendientes (Nivel de Napa, Cloruros definitivo, resto del catálogo).
 - Layout/shell propio del Hub (análogo a `OperatorLayout`).
 - Verificar dominio propio en Resend para que los correos no caigan en spam.
+- Reprobar los presets de `HistoricalChart.jsx` en la red habitual de Victor (ver pendiente #15).
 
 ---
 
