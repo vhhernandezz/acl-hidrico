@@ -1,0 +1,139 @@
+.mc-card {
+  --mc-ink: #0f2e2e;
+  --mc-teal: #0f5c5a;
+  --mc-sand: #f6f3ec;
+  --mc-sand-deep: #e9e3d4;
+  --mc-rojo: #b3422f;
+  --mc-azul: #2563a8;
+  --mc-azul-bg: #e7f0fb;
+
+  max-width: 52rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 1.25rem;
+  background: var(--mc-sand);
+  border: 1px solid var(--mc-sand-deep);
+  border-left: 4px solid var(--mc-teal);
+  border-radius: 0.5rem;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--mc-ink);
+}
+
+.mc-card--error {
+  border-left-color: var(--mc-rojo);
+}
+
+.mc-card-header {
+  margin-bottom: 1rem;
+}
+
+.mc-eyebrow {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mc-teal);
+  margin-bottom: 0.25rem;
+}
+
+.mc-title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+}
+
+.mc-controls {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.mc-control-field {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.mc-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.mc-select {
+  padding: 0.35rem 0.55rem;
+  font-size: 0.83rem;
+  border: 1px solid #c7c0ac;
+  border-radius: 0.35rem;
+  background: #fff;
+  color: var(--mc-ink);
+}
+
+.mc-status-text {
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+}
+
+.mc-banner {
+  margin: 0 0 1rem;
+  padding: 0.6rem 0.8rem;
+  border-radius: 0.4rem;
+  font-size: 0.83rem;
+}
+
+.mc-banner--error {
+  background: #fbeae6;
+  color: var(--mc-rojo);
+}
+
+.mc-banner--info {
+  background: var(--mc-azul-bg);
+  color: var(--mc-azul);
+}
+
+.mc-banner code {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.2rem;
+}
+
+.mc-plot {
+  background: #fff;
+  border-radius: 0.4rem;
+  padding: 0.5rem 0.25rem 0.25rem;
+}
+
+.mc-tooltip {
+  background: #fff;
+  border: 1px solid var(--mc-sand-deep);
+  border-radius: 0.35rem;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.78rem;
+  box-shadow: 0 2px 6px rgba(15, 46, 46, 0.12);
+}
+
+.mc-tooltip-date {
+  font-weight: 600;
+  margin-bottom: 0.3rem;
+}
+
+.mc-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-bottom: 0.15rem;
+}
+
+.mc-tooltip-dot {
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+@media (max-width: 480px) {
+  .mc-card {
+    padding: 1.1rem 1rem;
+    border-radius: 0;
+  }
+}
