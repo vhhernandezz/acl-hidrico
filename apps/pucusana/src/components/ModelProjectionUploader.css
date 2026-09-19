@@ -1,0 +1,132 @@
+.mpu-card {
+  --mpu-ink: #0f2e2e;
+  --mpu-teal: #0f5c5a;
+  --mpu-sand: #f6f3ec;
+  --mpu-sand-deep: #e9e3d4;
+  --mpu-rojo: #b3422f;
+  --mpu-rojo-bg: #fbeae6;
+  --mpu-verde: #2f6d4f;
+  --mpu-verde-bg: #e6f2ea;
+
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 1.5rem 1.5rem 1.25rem;
+  background: var(--mpu-sand);
+  border: 1px solid var(--mpu-sand-deep);
+  border-left: 4px solid var(--mpu-teal);
+  border-radius: 0.5rem;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  color: var(--mpu-ink);
+}
+
+.mpu-card-header {
+  margin-bottom: 0.75rem;
+}
+
+.mpu-eyebrow {
+  display: block;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--mpu-teal);
+  margin-bottom: 0.25rem;
+}
+
+.mpu-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+
+.mpu-hint {
+  font-size: 0.78rem;
+  color: #5b6b6a;
+  margin: 0 0 1rem;
+}
+
+.mpu-hint code {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+  font-size: 0.72rem;
+}
+
+.mpu-file-input {
+  display: block;
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+}
+
+.mpu-filename {
+  font-size: 0.82rem;
+  color: #5b6b6a;
+  margin: 0 0 0.75rem;
+}
+
+.mpu-status-text {
+  font-size: 0.88rem;
+  margin: 0.5rem 0;
+}
+
+.mpu-banner {
+  margin: 0.75rem 0;
+  padding: 0.65rem 0.85rem;
+  border-radius: 0.4rem;
+  font-size: 0.82rem;
+}
+
+.mpu-banner--error {
+  background: var(--mpu-rojo-bg);
+  color: var(--mpu-rojo);
+}
+
+.mpu-banner--success {
+  background: var(--mpu-verde-bg);
+  color: var(--mpu-verde);
+  font-weight: 600;
+}
+
+.mpu-error-list {
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+  max-height: 12rem;
+  overflow-y: auto;
+}
+
+.mpu-error-list li {
+  margin-bottom: 0.2rem;
+}
+
+.mpu-summary {
+  font-size: 0.88rem;
+  font-weight: 600;
+  margin: 0.75rem 0 0.5rem;
+}
+
+.mpu-upload-btn {
+  padding: 0.55rem 1rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #fff;
+  background: var(--mpu-teal);
+  border: none;
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.mpu-upload-btn:hover:not(:disabled) {
+  background: #0c4a48;
+}
+
+.mpu-upload-btn:disabled {
+  background: #a9b5b4;
+  cursor: not-allowed;
+}
+
+@media (max-width: 480px) {
+  .mpu-card {
+    padding: 1.1rem 1rem;
+    border-radius: 0;
+  }
+}
