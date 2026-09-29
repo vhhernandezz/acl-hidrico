@@ -1,7 +1,7 @@
 -- ============================================================================
 -- ACL GESTIÓN HÍDRICA — HUB CORPORATIVO
 -- Migración 0004 — revierte el acceso temporal de la migración 0003.
--- Ejecutar en cuanto el login (Supabase Auth) esté funcionando en el Hub.
+-- Ejecutada en la Sesión 5-A.
 -- ============================================================================
 
 drop policy if exists temp_dev_plantas_select_anon on public.plantas;
