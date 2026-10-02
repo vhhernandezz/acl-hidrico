@@ -1,0 +1,82 @@
+.lf-wrap {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f6f3ec;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  padding: 1rem;
+}
+
+.lf-card {
+  width: 100%;
+  max-width: 22rem;
+  background: #fff;
+  border: 1px solid #e9e3d4;
+  border-top: 4px solid #0f5c5a;
+  border-radius: 0.6rem;
+  padding: 2rem 1.75rem;
+  box-shadow: 0 2px 10px rgba(15, 46, 46, 0.08);
+}
+
+.lf-title {
+  margin: 0 0 0.2rem;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #0f2e2e;
+  text-align: center;
+}
+
+.lf-subtitle {
+  margin: 0 0 1.5rem;
+  font-size: 0.85rem;
+  color: #5b6b6a;
+  text-align: center;
+}
+
+.lf-label {
+  display: block;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #0f2e2e;
+  margin: 0.9rem 0 0.3rem;
+}
+
+.lf-input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.55rem 0.7rem;
+  font-size: 0.92rem;
+  border: 1px solid #c7c0ac;
+  border-radius: 0.4rem;
+}
+
+.lf-input:focus-visible {
+  outline: 3px solid #4fb0ae;
+  outline-offset: 1px;
+}
+
+.lf-error {
+  margin: 0.9rem 0 0;
+  padding: 0.55rem 0.7rem;
+  background: #fbeae6;
+  color: #b3422f;
+  border-radius: 0.35rem;
+  font-size: 0.82rem;
+}
+
+.lf-submit {
+  width: 100%;
+  margin-top: 1.4rem;
+  padding: 0.65rem 1rem;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: #fff;
+  background: #0f5c5a;
+  border: none;
+  border-radius: 0.4rem;
+  cursor: pointer;
+}
+
+.lf-submit:hover:not(:disabled) { background: #0c4a48; }
+.lf-submit:disabled { background: #a9b5b4; cursor: not-allowed; }

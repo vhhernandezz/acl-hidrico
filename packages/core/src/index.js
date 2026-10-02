@@ -7,3 +7,5 @@ export { TimeSeriesChart } from './components/TimeSeriesChart';
 export { AlarmBadge } from './components/AlarmBadge';
 export { KPICard } from './components/KPICard';
 export { DataTable } from './components/DataTable';
+export { createAuthContext } from './auth/createAuthContext';
+export { LoginForm } from './components/LoginForm';
