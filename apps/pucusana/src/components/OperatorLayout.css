@@ -171,3 +171,12 @@
     display: none; /* prioriza el contenido en pantallas angostas; menú completo queda para una sesión de navegación responsive */
   }
 }
+
+.ol-nav-item--button {
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  font-family: inherit;
+  cursor: pointer;
+}
