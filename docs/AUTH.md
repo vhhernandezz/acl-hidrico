@@ -1,66 +1,82 @@
 # Autenticación y Roles — ACL Gestión Hídrica
 
-> Sesión 5-A. Documenta el modelo de roles (ya construido desde las Sesiones 0-A/0-B), cómo crear usuarios, la matriz de permisos, y el estado de las políticas temporales tras esta sesión.
+> Sesiones 5-A, 5-B y 5-C. Documenta el modelo de roles, cómo crear usuarios, qué puede hacer cada rol en la base de datos y en la interfaz, y las limitaciones conocidas.
+>
+> Última actualización: tras la Sesión 5-C (rol `consultor_externo`).
 
 ---
 
-## 1. Decisión de seguridad de esta sesión
+## 1. Decisión de seguridad: el rol vive en `profiles`, no en `user_metadata`
 
-La sesión se planteó originalmente como "roles en `user_metadata`". Se cambió por lo siguiente:
+La Sesión 5-A se planteó originalmente como "roles en `user_metadata`". Se cambió por lo siguiente:
 
-**`user_metadata` es editable por el propio usuario** desde el cliente (`supabase.auth.updateUser()`). Si una política RLS confía en `user_metadata->>'role'`, cualquier usuario autenticado podría autoasignarse `role: 'admin'` con una sola llamada JS — es una vulnerabilidad conocida de Supabase, no una hipótesis.
+**`user_metadata` es editable por el propio usuario** desde el cliente (`supabase.auth.updateUser()`). Si una política RLS confía en `user_metadata->>'role'`, cualquier usuario autenticado podría autoasignarse `role: 'admin'` con una sola llamada JS. Es una vulnerabilidad conocida de Supabase.
 
-**Decisión tomada:** usar la tabla `profiles` que ya existe desde la Sesión 0-A/0-B, con una política que impide que el usuario cambie su propio `role` (`profiles_update_self_basic`, con un `with check` que compara contra el rol ya guardado). Todas las funciones RLS (`is_admin_or_director()`, `current_user_role()` en Pucusana; `hub_current_user_role()` en el Hub) ya leen de esta tabla — no hubo que escribir SQL de políticas nuevo, solo confirmar y documentar lo que ya existía.
+**Decisión:** el rol se guarda en la tabla `profiles`, con una política que impide que el usuario cambie su propio `role` (`profiles_update_self_basic`). Las funciones RLS (`is_admin_or_director()`, `can_write_operational_data()`, `current_user_role()` en Pucusana; `hub_current_user_role()` en el Hub) leen de esa tabla. El frontend (`createAuthContext.jsx`, Sesión 5-B) también lee el rol de `profiles`, nunca de `user_metadata`.
 
 ---
 
 ## 2. Modelo de roles
 
-**Pucusana** (`public.user_role`): `admin`, `director_tecnico`, `operador_planta`, `visor`.
-**Hub** (`public.hub_user_role`): `admin`, `visor`.
+**Pucusana** (`public.user_role`): `admin`, `director_tecnico`, `operador_planta`, `visor`, `consultor_externo`.
+**Hub** (`public.hub_user_role`): `admin`, `visor`. El Hub no tiene `consultor_externo`.
 
-Cada proyecto tiene su propia tabla `profiles`, independiente entre sí (son bases de datos distintas — arquitectura Hub & Spoke). Un usuario debe crearse **por separado** en cada proyecto si necesita acceso a ambos.
+Cada proyecto tiene su propia tabla `profiles`, independiente (son bases de datos distintas, arquitectura Hub & Spoke). Un usuario se crea por separado en cada proyecto donde necesite acceso.
 
-Al crear un usuario en `auth.users` (por cualquier vía: Dashboard, API, o un futuro flujo de registro), el trigger `handle_new_user()` **ya existente** crea automáticamente una fila en `profiles` con `role = 'visor'` por defecto — el rol más restrictivo. Un admin debe subirlo manualmente al rol correcto después.
+Al crear un usuario en `auth.users` (Dashboard, API o un futuro flujo de registro), el trigger `handle_new_user()` crea automáticamente su fila en `profiles` con `role = 'visor'`. Un admin lo sube al rol correcto después.
+
+`consultor_externo` se agregó en la Sesión 5-C (migración `0020`, que debe ejecutarse sola porque Postgres no permite usar un valor de enum en la misma transacción que lo crea). Es un perfil de solo lectura de datos crudos, sin acceso a configuración.
 
 ---
 
 ## 3. Cómo crear un usuario nuevo
 
 ### Paso 1 — Crear el usuario en Supabase Auth (Dashboard)
-1. Entra al proyecto correspondiente (Pucusana o Hub) → **Authentication** → **Users** → **Add user**.
-2. Elige **Create new user**, completa email y contraseña (o "Send invite" si prefieres que el usuario la defina él mismo).
-3. Guarda. Esto dispara automáticamente el trigger que crea su fila en `profiles` con `role = 'visor'`.
+1. Entra al proyecto correspondiente → **Authentication** → **Users** → **Add user**.
+2. Elige **Create new user** y completa correo y contraseña.
+3. Guarda. El trigger crea su fila en `profiles` con `role = 'visor'`.
 
 ### Paso 2 — Asignar el rol correcto (SQL Editor)
 ```sql
 -- Encuentra el id del usuario recién creado
 select id, email from auth.users where email = 'correo@ejemplo.com';
 
--- Asigna el rol (Pucusana: admin/director_tecnico/operador_planta/visor)
-update public.profiles set role = 'director_tecnico' where id = '<uuid-del-paso-anterior>';
+-- Pucusana: admin | director_tecnico | operador_planta | visor | consultor_externo
+-- Hub: admin | visor
+update public.profiles set role = 'consultor_externo' where id = '<uuid-del-paso-anterior>';
 ```
 
-Para el Hub, el mismo patrón pero con `role` limitado a `admin`/`visor`.
-
 ### Notas
-- No existe (todavía) una UI para este proceso — es manual, vía Dashboard + SQL. Un flujo de invitación/autogestión sería una sesión aparte, si se necesita.
-- Recuerda que Pucusana y Hub son proyectos Supabase distintos: un mismo correo puede (y probablemente deba) tener una cuenta en cada uno si esa persona usa ambas apps.
+- No existe una interfaz para este proceso: es manual, vía Dashboard y SQL.
+- Mientras el rol no se asigne, el usuario queda como `visor`.
+- Si un usuario no tiene fila en `profiles`, la app muestra un mensaje pidiendo avisar al administrador y no monta nada sensible.
 
 ---
 
-## 4. Matriz de permisos (ya implementada en RLS)
+## 4. Permisos en la base de datos (RLS)
+
+Esta es la barrera real de seguridad. La interfaz oculta componentes por comodidad (ver sección 6), pero lo que cuenta es lo que la base permite.
 
 ### Pucusana
 
-| Tabla | `visor` | `operador_planta` | `director_tecnico` | `admin` |
-|---|---|---|---|---|
-| `wells`, `parameters` | Lectura | Lectura | Lectura + escritura | Lectura + escritura + borrado |
-| `well_parameters` (umbrales) | Lectura | Lectura | Lectura + escritura | Lectura + escritura + borrado |
-| `readings` | Lectura | Lectura + inserción (no edita/borra) | Lectura + edición + borrado | Lectura + edición + borrado |
-| `alerts` | Lectura | Lectura + reconocer | Lectura + reconocer | Lectura + reconocer + borrado |
-| `dataloggers` | — | — | Lectura | Lectura + escritura |
-| `model_projections` | Lectura | Lectura | Lectura + escritura | Lectura + escritura + borrado |
+| Tabla | `consultor_externo` | `visor` | `operador_planta` | `director_tecnico` | `admin` |
+|---|---|---|---|---|---|
+| `wells`, `parameters` | Lectura | Lectura | Lectura | Lectura + escritura | Lectura + escritura + borrado |
+| `well_parameters` (umbrales) | **Sin acceso** (desde 0021) | Lectura | Lectura | Lectura + escritura | Lectura + escritura + borrado |
+| `readings` | Lectura | Lectura | Lectura + inserción | Lectura + edición + borrado | Lectura + edición + borrado |
+| `alerts` | Lectura (*) | Lectura | Lectura + reconocer | Lectura + reconocer | Lectura + reconocer + borrado |
+| `dataloggers` | Sin acceso | Sin acceso | Sin acceso | Lectura | Lectura + escritura |
+| `model_projections` | Lectura (*) | Lectura | Lectura | Lectura + escritura | Lectura + escritura + borrado |
+| `audit_log` | Sin acceso | Sin acceso | Sin acceso | Lectura | Lectura |
+| `profiles` | Lectura de todos los perfiles (*) | ídem | ídem | ídem | Lectura + escritura |
+
+(*) `alerts`, `model_projections` y `profiles` tienen una política de lectura abierta a cualquier usuario autenticado, de modo que `consultor_externo` puede leerlas consultando la API directamente, aunque su interfaz no las muestre. Si se quiere cerrarlas, hay que escribir políticas nuevas; hoy no se hizo porque no se pidió. Ver sección 7.
+
+`consultor_externo` no puede escribir en ninguna tabla: las funciones `is_admin_or_director()` y `can_write_operational_data()` no lo incluyen.
+
+### Vistas (Sesión 5-C, migración `0022`)
+
+`latest_readings_status` y `operator_kpi_status` se crean con `security_invoker = true`, así que se ejecutan con los permisos y el RLS de quien las consulta. Sin esa opción, una vista de Postgres corre con los permisos de su dueño y se salta el RLS de las tablas que une. `operator_kpi_status` hace un `LEFT JOIN` a `well_parameters`, por lo que antes de la 0022 podía devolver umbrales a un `consultor_externo`. **Estado:** la 0022 está escrita; falta confirmar que se ejecutó sin error y probar que el consultor ya no obtiene umbrales por las vistas (requiere PostgreSQL 15 o superior).
 
 ### Hub
 
@@ -72,26 +88,38 @@ Para el Hub, el mismo patrón pero con `role` limitado a `admin`/`visor`.
 
 ---
 
-## 5. Estado de las políticas temporales tras esta sesión
+## 5. Estado de las políticas temporales
 
-**Todas revertidas en esta sesión** (decisión de Victor: seguridad primero, aunque la app quede sin datos visibles hasta que exista login):
+En la Sesión 5-A se revirtieron todas las políticas temporales de acceso anónimo (`0007`, `0015`, `0017`, `0019` en Pucusana; `0004` en el Hub). Ninguna sigue activa. La Sesión 5-B restauró el acceso de la app mediante login real: sin sesión, ninguna pantalla muestra datos.
 
-| Migración | Qué revierte | Proyecto |
-|---|---|---|
-| `0007` | Lectura anon de `wells`/`parameters`/`well_parameters`/`readings` | Pucusana |
-| `0015` | Escritura anon de `well_parameters` (umbrales) | Pucusana |
-| `0017` | Lectura anon de `model_projections` | Pucusana |
-| `0019` | Escritura anon de `model_projections` | Pucusana |
-| `0004` | Lectura/reconocimiento anon de `plantas`/`alarmas_activas` | Hub |
-
-**Qué se rompe temporalmente:** desde que se ejecuten estos 5 archivos, **ninguna pantalla de la app va a mostrar datos** (`OperatorLayout`, `AlarmasActivasPanel`, `ScenarioBuilder`, todo) — porque el frontend consulta con la `anon key` sin sesión, y ya no hay ninguna política que le dé acceso. Esto es esperado, no un bug.
-
-**Cómo seguir verificando datos mientras tanto:** el **SQL Editor de Supabase** sigue funcionando normal (corre con un rol elevado que no pasa por RLS), así que puedes seguir consultando/insertando datos de prueba ahí sin problema.
-
-**Para que la app vuelva a funcionar:** hace falta la Sesión 5-B (login UI + manejo de sesión en el frontend) — es el siguiente paso lógico e inmediato después de esta sesión.
+El SQL Editor de Supabase corre con un rol elevado que no pasa por RLS, así que sirve para consultar e insertar datos de prueba sin sesión.
 
 ---
 
-## 6. Próxima sesión sugerida
+## 6. Qué ve cada rol en la interfaz (Pucusana)
 
-**5-B — Login UI**: formulario de inicio de sesión, manejo de sesión en React (contexto de Auth, redirect si no hay sesión), y conectar `OperatorLayout` (Pucusana) y el shell del Hub a un usuario real autenticado. Sin esto, la app queda sin acceso desde el cierre de la 5-A.
+Definido en `main.jsx` y `OperatorLayout.jsx`. Es comodidad de interfaz, no seguridad.
+
+| Componente | `consultor_externo` | `visor` | `operador_planta` | `director_tecnico` / `admin` |
+|---|---|---|---|---|
+| Datos crudos (tabla + exportación CSV/Excel) | Sí | Sí | Sí | Sí |
+| Monitoreo en vivo (KPIs, gráficos) | No | Sí | Sí | Sí |
+| Constructor de escenarios, comparador de modelo, histórico, panel de ingesta | No | Sí | Sí | Sí |
+| Formulario de caudal | No | No | Sí | Sí |
+| Cargador de proyecciones, configurador de umbrales | No | No | No | Sí |
+
+Si el rol no se puede determinar, no se monta nada sensible. Si `profiles.is_active` es falso, se muestra un mensaje de cuenta desactivada.
+
+**Verificado:** `consultor_externo` (ve solo "Datos crudos") y `admin` (ve todo). **Sin probar:** `visor`, `operador_planta` y `director_tecnico`; esas columnas salen de leer el código.
+
+El Hub no tiene filtrado por rol: su `main.jsx` monta lo mismo para `admin` y `visor`.
+
+---
+
+## 7. Limitaciones conocidas
+
+1. **`is_active` no se aplica en RLS.** Las funciones RLS no consultan `profiles.is_active`. Un usuario desactivado solo queda bloqueado en la interfaz, no en la base de datos. Para bloquearlo de verdad hay que incorporar `is_active` a las funciones RLS o desactivar al usuario en Supabase Auth.
+2. **Lectura abierta de `alerts`, `model_projections` y `profiles`** para cualquier usuario autenticado, incluido `consultor_externo` (ver nota de la sección 4).
+3. **Migración `0022` sin confirmar** (ejecución y efecto sobre las vistas).
+4. **El Hub no tiene filtrado por rol** ni un rol equivalente a `consultor_externo`.
+5. **Alta de usuarios 100% manual.** Un flujo de invitación o registro sería una sesión aparte.

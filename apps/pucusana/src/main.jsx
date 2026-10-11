@@ -11,9 +11,13 @@ import { ModelComparison } from './components/ModelComparison';
 import { ModelProjectionUploader } from './components/ModelProjectionUploader';
 import { ScenarioBuilder } from './components/ScenarioBuilder';
 
-// Sesión 5-B: login real. Desde la 5-A, RLS exige sesión autenticada —
-// sin esto, la app no mostraba nada. Gate decide qué mostrar según haya
-// o no sesión; el contenido real vive en AppContent.
+// Sesión 5-C: los componentes se montan según el rol. Esto es comodidad de
+// UI (no mostrar pantallas que van a fallar), NO la barrera de seguridad:
+// la barrera real es RLS en la base de datos. Si el rol no se puede
+// determinar, no se monta nada sensible (falla cerrado).
+
+const ROLES_CONFIGURAN = ['admin', 'director_tecnico'];
+const ROLES_INGRESAN_LECTURAS = ['admin', 'director_tecnico', 'operador_planta'];
 
 function TopBar() {
   const { user, profile, signOut } = useAuth();
@@ -38,20 +42,53 @@ function TopBar() {
   );
 }
 
+function Mensaje({ children }) {
+  return <p style={{ padding: '2rem', fontFamily: 'system-ui', color: '#5b6b6a' }}>{children}</p>;
+}
+
 function AppContent() {
+  const { role, profile } = useAuth();
+
+  if (!role) {
+    return (
+      <>
+        <TopBar />
+        <Mensaje>
+          Cargando tu perfil… Si esto no avanza, tu usuario no tiene un rol asignado:
+          avisa al administrador.
+        </Mensaje>
+      </>
+    );
+  }
+
+  if (profile?.is_active === false) {
+    return (
+      <>
+        <TopBar />
+        <Mensaje>Tu cuenta está desactivada. Contacta al administrador.</Mensaje>
+      </>
+    );
+  }
+
+  const esConsultor = role === 'consultor_externo';
+  const puedeConfigurar = ROLES_CONFIGURAN.includes(role);
+  const puedeIngresarLecturas = ROLES_INGRESAN_LECTURAS.includes(role);
+
   return (
     <>
       <TopBar />
       <OperatorLayout />
-      <div style={{ padding: '2rem 1rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
-        <ScenarioBuilder />
-        <ModelProjectionUploader />
-        <ModelComparison />
-        <HistoricalChart />
-        <ThresholdConfig />
-        <IngestionStatusPanel />
-        <CaudalReadingForm />
-      </div>
+      {!esConsultor && (
+        <div style={{ padding: '2rem 1rem', display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+          <ScenarioBuilder />
+          {puedeConfigurar && <ModelProjectionUploader />}
+          <ModelComparison />
+          <HistoricalChart />
+          {puedeConfigurar && <ThresholdConfig />}
+          <IngestionStatusPanel />
+          {puedeIngresarLecturas && <CaudalReadingForm />}
+        </div>
+      )}
     </>
   );
 }
@@ -60,7 +97,7 @@ function Gate() {
   const { session, loading, signIn } = useAuth();
 
   if (loading) {
-    return <p style={{ padding: '2rem', fontFamily: 'system-ui' }}>Cargando…</p>;
+    return <Mensaje>Cargando…</Mensaje>;
   }
 
   if (!session) {

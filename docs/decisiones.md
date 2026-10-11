@@ -2,7 +2,7 @@
 
 > Este documento consolida el historial de decisiones técnicas, convenciones y pendientes del proyecto, para que el desarrollo pueda continuar sin pérdida de contexto — incluyendo desde una máquina nueva o una sesión de chat nueva (que no tiene memoria de conversaciones anteriores).
 >
-> Última actualización: tras cerrar la Sesión 5-B (login real en Pucusana y Hub).
+> Última actualización: tras cerrar la Sesión 5-C (vista del consultor externo y filtrado por rol).
 
 ---
 
@@ -44,7 +44,7 @@ acl-hidrico/
 │   ├── pucusana/
 │   │   └── supabase/            ← ⚠️ carpeta anidada, ver nota abajo
 │   │       ├── config.toml
-│   │       ├── migrations/      ← 0001 a 0019
+│   │       ├── migrations/      ← 0001 a 0022
 │   │       └── functions/
 │   │           └── datalogger-ingest/
 │   └── hub/
@@ -70,7 +70,9 @@ Para correr comandos del CLI: `cd supabase/pucusana` (o `supabase/hub`) y desde 
 
 - **Nomenclatura de pozos:** "Pozo 1" (`IRHS-776`) y "Pozo 3" (`IRHS-777`, no "Pozo 2").
 - **Coordenadas:** UTM (zona 18S, datum WGS84), NO lat/long decimal.
-- **Roles (Pucusana):** `admin`, `director_tecnico`, `operador_planta`, `visor`.
+- **Roles (Pucusana):** `admin`, `director_tecnico`, `operador_planta`, `visor`, `consultor_externo` (este último desde la Sesión 5-C: solo lectura de datos crudos, sin acceso a configuración).
+- **Las vistas SQL deben crearse con `security_invoker = true`** — por defecto una vista de Postgres corre con los permisos de su dueño y se salta el RLS de las tablas que consulta (ver Sesión 5-C, migración `0022`). Las dos vistas actuales (`latest_readings_status`, `operator_kpi_status`) se corrigieron en la 0022; cualquier vista nueva debe nacer así.
+- **Ocultar componentes por rol en el frontend es comodidad de UI, no seguridad:** la barrera real es RLS en la base de datos. El frontend falla cerrado (si no puede determinar el rol, no monta nada sensible).
 - **Roles (Hub):** `admin`, `visor`.
 - **El rol SIEMPRE se guarda en la tabla `profiles`, NUNCA en `user_metadata`** — `user_metadata` es editable por el propio usuario desde el cliente, sería una vulnerabilidad de autoescalación de privilegios. Decisión tomada explícitamente en la Sesión 5-A.
 - **Fuente de datos (`readings.source`):** `manual`, `sensor`, `carga_masiva`, `laboratorio`.
@@ -127,6 +129,14 @@ Para correr comandos del CLI: `cd supabase/pucusana` (o `supabase/hub`) y desde 
   - Cada app (`apps/pucusana/src/auth.js`, `apps/hub/src/auth.js`) instancia su propio `AuthProvider`/`useAuth` con su propio cliente Supabase (proyectos distintos, sesiones independientes).
   - `main.jsx` de ambas apps: `Gate` muestra `LoginForm` sin sesión, o la app con una barra superior (correo + rol + "Cerrar sesión").
   - **Probado con éxito en ambas apps**, con los 3 usuarios de distintos roles que Victor creó siguiendo `docs/AUTH.md`.
+- **5-C**: Vista del consultor externo (solo Pucusana; el Hub sigue con `admin`/`visor`).
+  - Nuevo rol `consultor_externo` en el enum `user_role` (migración `0020`, que debe ejecutarse SOLA: Postgres no permite usar un valor de enum recién agregado en la misma transacción).
+  - `0021`: reemplaza la política de lectura de `well_parameters` por `well_parameters_select_internal`, que excluye a `consultor_externo`. `dataloggers` ya lo excluía desde el esquema original. Las políticas de escritura existentes ya lo excluyen solas (`is_admin_or_director()` y `can_write_operational_data()` no lo incluyen).
+  - `ConsultorView.jsx` + `useConsultorReadings.js`: tabla paginada (50 filas por página) de `readings` con filtros de pozo, parámetro y fechas, y exportación a CSV (`papaparse`) y Excel (`xlsx`, dependencia nueva). La exportación trae TODAS las filas que coinciden con los filtros, paginando internamente en bloques de 1000 (límite por defecto de PostgREST).
+  - `OperatorLayout.jsx`: el ítem "Datos crudos" del sidebar dejó de estar bloqueado (cambio de vista por estado); el badge del header muestra el rol real en vez de "Operador" fijo; el consultor ve solo "Datos crudos".
+  - `main.jsx` de Pucusana monta los componentes según rol: el consultor no ve nada debajo del layout; `ModelProjectionUploader` y `ThresholdConfig` solo para `admin`/`director_tecnico`; `CaudalReadingForm` para esos dos más `operador_planta`. Si el rol no se puede determinar no se monta nada sensible; si `profiles.is_active` es falso se muestra un mensaje de cuenta desactivada.
+  - **Hueco encontrado durante la sesión (error propio, corregido):** las vistas `latest_readings_status` y `operator_kpi_status` corren por defecto con permisos de su dueño y se saltan RLS. `operator_kpi_status` hace LEFT JOIN a `well_parameters`, así que podía devolver umbrales a un consultor aunque la tabla directa se los bloqueara. Los comentarios de las migraciones `0010` y `0012` ("heredan RLS de las tablas subyacentes") eran incorrectos. La migración `0022` activa `security_invoker = true` en ambas (requiere PostgreSQL 15 o superior).
+  - **Estado de verificación:** probado con un usuario `consultor_externo` y uno `admin` — el consultor ve solo "Datos crudos", el admin ve todos los gráficos y tablas. **NO confirmado:** (a) que la `0022` se haya ejecutado sin error y que de verdad impida que el consultor obtenga umbrales por las vistas (esa prueba puntual no se hizo); (b) el comportamiento con `operador_planta` y `visor` (no se probaron en esta sesión).
 
 ---
 
@@ -151,7 +161,7 @@ Configurables desde `ThresholdConfig.jsx` (ya funcional de verdad desde la 5-B).
 2. ~~Login / Supabase Auth~~ ✅ **Hecho en la Sesión 5-B**, funcionando en Pucusana y Hub.
 3. **Umbral de Nivel de Napa** — falta definición de Victor.
 4. **Factor de conversión CE↔TDS.**
-5. **Dónde viven el formulario de caudal (1-A), panel de ingesta (1-D), configurador de umbrales (3-C), comparador de modelo (4-B) y constructor de escenarios (4-D)** dentro de `OperatorLayout` — hoy están montados aparte en `main.jsx`.
+5. **Integrar dentro de `OperatorLayout` los componentes que siguen apilados debajo en `main.jsx`** (formulario de caudal 1-A, panel de ingesta 1-D, configurador de umbrales 3-C, comparador de modelo 4-B, constructor de escenarios 4-D). "Datos crudos" ya está integrado (5-C) y los demás ya se montan según rol, pero siguen fuera del layout.
 6. **Vista dual de ambos pozos a la vez** (como el prototipo del cliente).
 7. **Valores de umbral para el resto del catálogo.**
 8. **Función de sincronización Hub↔spoke** — sigue sin existir.
@@ -166,6 +176,11 @@ Configurables desde `ThresholdConfig.jsx` (ya funcional de verdad desde la 5-B).
 17. **Adaptar el importador (script Python + componente web) al formato real del CSV de MODFLOW** cuando Victor lo tenga.
 18. **Revisar si el umbral real (25,000 mg/L) y la tasa estimada del histórico dan resultados razonables en `ScenarioBuilder.jsx`** antes de mostrárselo al cliente — ver nota de la Sesión 4-D.
 19. **Flujo de invitación/autogestión de usuarios** — hoy la creación de usuarios es 100% manual (Dashboard + SQL, ver `docs/AUTH.md`). Si se necesita que la gente se registre sola, sería una sesión nueva.
+20. **Confirmar la migración `0022`:** que se ejecutó sin error (requiere PostgreSQL 15+) y probar con un usuario `consultor_externo` que ni `operator_kpi_status` ni `latest_readings_status` le devuelven umbrales.
+21. **Probar el filtrado por rol de la 5-C con `operador_planta` y `visor`** (solo se probó con `consultor_externo` y `admin`).
+22. **`docs/AUTH.md` quedó desactualizado:** no menciona `consultor_externo` ni su columna en la matriz de permisos.
+23. **`is_active` no se aplica en RLS:** `current_user_role()` no lo consulta, así que un usuario desactivado solo queda bloqueado en la interfaz (5-C), no en la base de datos. Para bloquearlo de verdad hay que incorporar `is_active` a las funciones de RLS o desactivar al usuario en Supabase Auth.
+24. **El Hub no tiene filtrado por rol:** su `main.jsx` monta lo mismo para `admin` y `visor`, y `consultor_externo` no existe en ese proyecto.
 
 ---
 
@@ -181,7 +196,7 @@ Configurables desde `ThresholdConfig.jsx` (ya funcional de verdad desde la 5-B).
 | `RESEND_API_KEY`, `NOTIFY_EMAIL_TO`, `WEBHOOK_SECRET` | Supabase Secrets del Hub | No recuperables una vez guardados |
 | Valor real de `WEBHOOK_SECRET` embebido en `trigger_notify_critical_alarm` | Solo en la base del Hub | El archivo en git tiene un PLACEHOLDER |
 | `scripts/import-model-projections/.env` (`service_role` de Pucusana) | Local por máquina, gitignored | Distinto del anon key |
-| Contraseñas de los 3 usuarios de prueba (roles distintos) creados en la 5-B | Las que Victor definió al crearlos en el Dashboard | No están en ningún archivo de este repo |
+| Contraseñas de los usuarios de prueba (roles distintos, creados en la 5-B y 5-C; incluye uno `consultor_externo`) | Las que Victor definió al crearlos en el Dashboard | No están en ningún archivo de este repo |
 
 ---
 
@@ -206,6 +221,8 @@ Configurables desde `ThresholdConfig.jsx` (ya funcional de verdad desde la 5-B).
 - Cargar valores reales del estudio hidrogeológico en `model_projections` cuando estén disponibles.
 - Revisar los resultados de `ScenarioBuilder.jsx` con el umbral real antes de mostrarlo al cliente.
 - Integrar los componentes sueltos (1-A, 1-D, 3-C, 4-B, 4-D) dentro de `OperatorLayout` en vez de tenerlos apilados en `main.jsx`.
+- Confirmar la `0022` y probar el filtrado por rol con `operador_planta` y `visor` (pendientes 20 y 21).
+- Actualizar `docs/AUTH.md` con `consultor_externo` (pendiente 22).
 
 ---
 
@@ -232,3 +249,5 @@ Configurables desde `ThresholdConfig.jsx` (ya funcional de verdad desde la 5-B).
 **Limitación de red descubierta en la Sesión 4-A (específica de la laptop/conexión de viaje):** ciertas peticiones del navegador con parámetros de filtro por fecha se quedan colgadas indefinidamente, mientras que la misma consulta por SQL Editor o por `curl` responde instantánea. Pendiente confirmar si es exclusivo del viaje.
 
 **Lección de la Sesión 4-D — cuidado con estimaciones derivadas de datos reales ruidosos:** una fórmula que funciona bien con un número de ejemplo fijo (como tenía el prototipo) puede comportarse de forma completamente distinta con datos reales no monótonos — en este caso, anulando silenciosamente la diferencia entre escenarios en vez de dar un error visible. Vale la pena probar siempre los casos extremos (aquí: comparar Positivo vs. Negativo) antes de dar por buena una función de cálculo.
+
+**Lección de la Sesión 5-C — las vistas de Postgres se saltan RLS por defecto:** una vista corre con los permisos de su dueño, no del usuario que la consulta. Bloquear una tabla con RLS no basta si existe una vista que la une: hay que crear la vista con `security_invoker = true`. Aquí se detectó al revisar el diseño, no por una prueba, y los comentarios de las migraciones `0010` y `0012` afirmaban lo contrario. Al decir que una restricción de acceso "ya está cubierta", conviene revisar también las vistas, funciones y Edge Functions que tocan esos datos.
