@@ -2,7 +2,7 @@
 
 > Sesiones 5-A, 5-B y 5-C. Documenta el modelo de roles, cómo crear usuarios, qué puede hacer cada rol en la base de datos y en la interfaz, y las limitaciones conocidas.
 >
-> Última actualización: tras la Sesión 5-C (rol `consultor_externo`).
+> Última actualización: tras la Sesión 5-C (rol `consultor_externo`), con las pruebas de roles confirmadas.
 
 ---
 
@@ -76,7 +76,7 @@ Esta es la barrera real de seguridad. La interfaz oculta componentes por comodid
 
 ### Vistas (Sesión 5-C, migración `0022`)
 
-`latest_readings_status` y `operator_kpi_status` se crean con `security_invoker = true`, así que se ejecutan con los permisos y el RLS de quien las consulta. Sin esa opción, una vista de Postgres corre con los permisos de su dueño y se salta el RLS de las tablas que une. `operator_kpi_status` hace un `LEFT JOIN` a `well_parameters`, por lo que antes de la 0022 podía devolver umbrales a un `consultor_externo`. **Estado:** la 0022 está escrita; falta confirmar que se ejecutó sin error y probar que el consultor ya no obtiene umbrales por las vistas (requiere PostgreSQL 15 o superior).
+`latest_readings_status` y `operator_kpi_status` se crean con `security_invoker = true`, así que se ejecutan con los permisos y el RLS de quien las consulta. Sin esa opción, una vista de Postgres corre con los permisos de su dueño y se salta el RLS de las tablas que une. `operator_kpi_status` hace un `LEFT JOIN` a `well_parameters`, por lo que antes de la 0022 podía devolver umbrales a un `consultor_externo`. **Estado:** la 0022 se ejecutó sin errores (el proyecto corre PostgreSQL 15 o superior). Falta una prueba puntual: consultar `operator_kpi_status` con una sesión de `consultor_externo` y comprobar que `threshold_warning` y `threshold_critical` llegan en null.
 
 ### Hub
 
@@ -110,7 +110,7 @@ Definido en `main.jsx` y `OperatorLayout.jsx`. Es comodidad de interfaz, no segu
 
 Si el rol no se puede determinar, no se monta nada sensible. Si `profiles.is_active` es falso, se muestra un mensaje de cuenta desactivada.
 
-**Verificado:** `consultor_externo` (ve solo "Datos crudos") y `admin` (ve todo). **Sin probar:** `visor`, `operador_planta` y `director_tecnico`; esas columnas salen de leer el código.
+**Verificado por Victor:** `admin`, `operador_planta`, `visor` y `consultor_externo`; las diferencias entre roles coinciden con la tabla. Entre esos cuatro, solo `admin` accedió al configurador de umbrales. **Sin probar:** `director_tecnico` (por código ve lo mismo que `admin`, incluido el configurador de umbrales).
 
 El Hub no tiene filtrado por rol: su `main.jsx` monta lo mismo para `admin` y `visor`.
 
@@ -120,6 +120,6 @@ El Hub no tiene filtrado por rol: su `main.jsx` monta lo mismo para `admin` y `v
 
 1. **`is_active` no se aplica en RLS.** Las funciones RLS no consultan `profiles.is_active`. Un usuario desactivado solo queda bloqueado en la interfaz, no en la base de datos. Para bloquearlo de verdad hay que incorporar `is_active` a las funciones RLS o desactivar al usuario en Supabase Auth.
 2. **Lectura abierta de `alerts`, `model_projections` y `profiles`** para cualquier usuario autenticado, incluido `consultor_externo` (ver nota de la sección 4).
-3. **Migración `0022` sin confirmar** (ejecución y efecto sobre las vistas).
+3. **Falta la prueba puntual de la `0022`:** la migración se ejecutó sin errores, pero no se comprobó con una sesión de `consultor_externo` que `operator_kpi_status` devuelva los umbrales en null.
 4. **El Hub no tiene filtrado por rol** ni un rol equivalente a `consultor_externo`.
 5. **Alta de usuarios 100% manual.** Un flujo de invitación o registro sería una sesión aparte.

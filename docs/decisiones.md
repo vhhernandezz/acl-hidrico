@@ -2,7 +2,20 @@
 
 > Este documento consolida el historial de decisiones técnicas, convenciones y pendientes del proyecto, para que el desarrollo pueda continuar sin pérdida de contexto — incluyendo desde una máquina nueva o una sesión de chat nueva (que no tiene memoria de conversaciones anteriores).
 >
-> Última actualización: tras cerrar la Sesión 5-C (vista del consultor externo y filtrado por rol).
+> Última actualización: cierre de la Sesión 5-C, con las pruebas de roles confirmadas por Victor.
+
+---
+
+## 0. Cómo retomar el trabajo en un chat nuevo
+
+Claude no recuerda conversaciones anteriores: este archivo es la memoria del proyecto. Al abrir un chat nuevo:
+
+1. Adjuntar `docs/decisiones.md` (y `docs/AUTH.md` si la sesión toca roles o permisos).
+2. Indicar qué sesión toca, con el nombre del plan (por ejemplo "Sesión 5D …"). El plan de sesiones lo lleva Victor; este archivo registra lo ya hecho, no lo que viene.
+3. Si la sesión modifica archivos existentes, adjuntarlos también. Claude puede perder los archivos que generó entre mensajes, y reconstruirlos de memoria es costoso y propenso a errores. Pedir ediciones puntuales en vez de reescrituras completas ahorra consumo.
+4. Al cerrar cada sesión: copiar los archivos al repo, `git add`/`commit`/`push`, y confirmar en GitHub.com antes de actualizar este archivo.
+
+Estado al momento de escribir esto: Pucusana y Hub funcionan con login real, en local (`npm run dev:pucusana`, `npm run dev:hub`). No hay despliegue en Vercel todavía.
 
 ---
 
@@ -50,7 +63,7 @@ acl-hidrico/
 │   └── hub/
 │       └── supabase/
 │           ├── config.toml
-│           ├── migrations/      ← 0001 a 0004
+│           ├── migrations/      ← 0001 a 0005
 │           └── functions/
 │               └── notify/
 ├── scripts/
@@ -136,7 +149,8 @@ Para correr comandos del CLI: `cd supabase/pucusana` (o `supabase/hub`) y desde 
   - `OperatorLayout.jsx`: el ítem "Datos crudos" del sidebar dejó de estar bloqueado (cambio de vista por estado); el badge del header muestra el rol real en vez de "Operador" fijo; el consultor ve solo "Datos crudos".
   - `main.jsx` de Pucusana monta los componentes según rol: el consultor no ve nada debajo del layout; `ModelProjectionUploader` y `ThresholdConfig` solo para `admin`/`director_tecnico`; `CaudalReadingForm` para esos dos más `operador_planta`. Si el rol no se puede determinar no se monta nada sensible; si `profiles.is_active` es falso se muestra un mensaje de cuenta desactivada.
   - **Hueco encontrado durante la sesión (error propio, corregido):** las vistas `latest_readings_status` y `operator_kpi_status` corren por defecto con permisos de su dueño y se saltan RLS. `operator_kpi_status` hace LEFT JOIN a `well_parameters`, así que podía devolver umbrales a un consultor aunque la tabla directa se los bloqueara. Los comentarios de las migraciones `0010` y `0012` ("heredan RLS de las tablas subyacentes") eran incorrectos. La migración `0022` activa `security_invoker = true` en ambas (requiere PostgreSQL 15 o superior).
-  - **Estado de verificación:** probado con un usuario `consultor_externo` y uno `admin` — el consultor ve solo "Datos crudos", el admin ve todos los gráficos y tablas. **NO confirmado:** (a) que la `0022` se haya ejecutado sin error y que de verdad impida que el consultor obtenga umbrales por las vistas (esa prueba puntual no se hizo); (b) el comportamiento con `operador_planta` y `visor` (no se probaron en esta sesión).
+  - `docs/AUTH.md` se actualizó al cierre de la sesión con todo lo anterior. Además deja explícito que `consultor_externo` puede leer por la API `alerts`, `model_projections` y `profiles` (políticas de lectura abiertas a cualquier usuario autenticado), aunque su interfaz no las muestre; no se cerraron porque no se pidió.
+  - **Estado de verificación (al cierre):** confirmado por Victor con usuarios de cuatro roles: `consultor_externo` (ve solo "Datos crudos"), `admin` (ve todo), `operador_planta` y `visor` (las diferencias entre roles coinciden con lo esperado; entre los cuatro roles probados, solo `admin` accedió al configurador de umbrales). La migración `0022` se ejecutó sin errores. **NO confirmado:** (a) la prueba puntual de que un `consultor_externo` ya no obtiene umbrales al consultar las vistas directamente; (b) `director_tecnico`, que no se probó (por código ve lo mismo que `admin`, incluido el configurador de umbrales).
 
 ---
 
@@ -176,9 +190,9 @@ Configurables desde `ThresholdConfig.jsx` (ya funcional de verdad desde la 5-B).
 17. **Adaptar el importador (script Python + componente web) al formato real del CSV de MODFLOW** cuando Victor lo tenga.
 18. **Revisar si el umbral real (25,000 mg/L) y la tasa estimada del histórico dan resultados razonables en `ScenarioBuilder.jsx`** antes de mostrárselo al cliente — ver nota de la Sesión 4-D.
 19. **Flujo de invitación/autogestión de usuarios** — hoy la creación de usuarios es 100% manual (Dashboard + SQL, ver `docs/AUTH.md`). Si se necesita que la gente se registre sola, sería una sesión nueva.
-20. **Confirmar la migración `0022`:** que se ejecutó sin error (requiere PostgreSQL 15+) y probar con un usuario `consultor_externo` que ni `operator_kpi_status` ni `latest_readings_status` le devuelven umbrales.
-21. **Probar el filtrado por rol de la 5-C con `operador_planta` y `visor`** (solo se probó con `consultor_externo` y `admin`).
-22. **`docs/AUTH.md` quedó desactualizado:** no menciona `consultor_externo` ni su columna en la matriz de permisos.
+20. **Prueba puntual de la `0022` con `consultor_externo`:** la migración ya se ejecutó sin errores; falta consultar `operator_kpi_status` con una sesión de ese rol y comprobar que `threshold_warning` y `threshold_critical` llegan en null.
+21. **Probar `director_tecnico`** con el filtrado por rol de la 5-C (por código ve lo mismo que `admin`; `operador_planta` y `visor` ya se probaron).
+22. ~~`docs/AUTH.md` desactualizado~~ ✅ **Actualizado al cierre de la 5-C:** incluye `consultor_externo`, la matriz de permisos, las vistas con `security_invoker`, qué ve cada rol en la interfaz y las limitaciones conocidas.
 23. **`is_active` no se aplica en RLS:** `current_user_role()` no lo consulta, así que un usuario desactivado solo queda bloqueado en la interfaz (5-C), no en la base de datos. Para bloquearlo de verdad hay que incorporar `is_active` a las funciones de RLS o desactivar al usuario en Supabase Auth.
 24. **El Hub no tiene filtrado por rol:** su `main.jsx` monta lo mismo para `admin` y `visor`, y `consultor_externo` no existe en ese proyecto.
 
@@ -221,8 +235,7 @@ Configurables desde `ThresholdConfig.jsx` (ya funcional de verdad desde la 5-B).
 - Cargar valores reales del estudio hidrogeológico en `model_projections` cuando estén disponibles.
 - Revisar los resultados de `ScenarioBuilder.jsx` con el umbral real antes de mostrarlo al cliente.
 - Integrar los componentes sueltos (1-A, 1-D, 3-C, 4-B, 4-D) dentro de `OperatorLayout` en vez de tenerlos apilados en `main.jsx`.
-- Confirmar la `0022` y probar el filtrado por rol con `operador_planta` y `visor` (pendientes 20 y 21).
-- Actualizar `docs/AUTH.md` con `consultor_externo` (pendiente 22).
+- Prueba puntual de la `0022` con `consultor_externo` y prueba de `director_tecnico` (pendientes 20 y 21).
 
 ---
 
