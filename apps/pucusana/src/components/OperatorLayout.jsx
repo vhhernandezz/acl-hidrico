@@ -4,6 +4,7 @@ import { OperatorKPICards } from './OperatorKPICards';
 import { CEHourlyChart } from './CEHourlyChart';
 import { OperationalCharts } from './OperationalCharts';
 import { ConsultorView } from './ConsultorView';
+import { Direccion } from './Direccion';
 import './OperatorLayout.css';
 
 /**
@@ -13,6 +14,8 @@ import './OperatorLayout.css';
  * el consultor externo ve SOLO "Datos crudos" (sin el monitoreo en vivo,
  * que muestra umbrales, ni los placeholders de otras plantas), y el badge
  * del header muestra el rol real en vez de un "Operador" fijo.
+ * Sesión 5D: vista "Dirección técnica" (admin y director_tecnico). Como el
+ * resto del filtrado por rol, es comodidad de UI; la barrera real es RLS.
  */
 
 const LOCKED_NAV_ITEMS_PUCUSANA = [
@@ -21,6 +24,14 @@ const LOCKED_NAV_ITEMS_PUCUSANA = [
 ];
 
 const LOCKED_PLANTS = ['Arequipa', 'Cusco', 'Iquitos', 'Trujillo', 'Zárate / Lima'];
+
+const ROLES_DIRECCION = ['admin', 'director_tecnico'];
+
+const TITULOS = {
+  live: 'Monitoreo en vivo — Pucusana',
+  raw: 'Datos crudos — Pucusana',
+  direccion: 'Dirección técnica — Pucusana',
+};
 
 const ROLE_LABELS = {
   admin: 'Administrador',
@@ -37,10 +48,16 @@ function LockIcon() {
 export function OperatorLayout() {
   const { role } = useAuth();
   const esConsultor = role === 'consultor_externo';
-  const [activeView, setActiveView] = useState('live'); // 'live' | 'raw'
+  const puedeVerDireccion = ROLES_DIRECCION.includes(role);
+  const [activeView, setActiveView] = useState('live'); // 'live' | 'raw' | 'direccion'
 
   // El consultor siempre cae en 'raw', sin depender de estado inicial.
-  const vistaEfectiva = esConsultor ? 'raw' : activeView;
+  // 'direccion' exige rol autorizado; si no, vuelve a 'live'.
+  const vistaEfectiva = esConsultor
+    ? 'raw'
+    : activeView === 'direccion' && !puedeVerDireccion
+      ? 'live'
+      : activeView;
 
   return (
     <div className="ol-shell">
@@ -67,6 +84,15 @@ export function OperatorLayout() {
               onClick={() => setActiveView('live')}
             >
               <span aria-hidden="true">📊</span> Monitoreo en vivo
+            </button>
+          )}
+          {puedeVerDireccion && (
+            <button
+              type="button"
+              className={`ol-nav-item ol-nav-item--button ${vistaEfectiva === 'direccion' ? 'ol-nav-item--active' : ''}`}
+              onClick={() => setActiveView('direccion')}
+            >
+              <span aria-hidden="true">🧭</span> Dirección técnica
             </button>
           )}
           <button
@@ -98,20 +124,20 @@ export function OperatorLayout() {
         <main className="ol-main">
           <div className="ol-topbar">
             <div className="ol-topbar-title">
-              {vistaEfectiva === 'live' ? 'Monitoreo en vivo — Pucusana' : 'Datos crudos — Pucusana'}
+              {TITULOS[vistaEfectiva]}
             </div>
           </div>
 
           <div className="ol-content">
-            {vistaEfectiva === 'live' ? (
+            {vistaEfectiva === 'live' && (
               <>
                 <OperatorKPICards />
                 <CEHourlyChart />
                 <OperationalCharts />
               </>
-            ) : (
-              <ConsultorView />
             )}
+            {vistaEfectiva === 'direccion' && <Direccion />}
+            {vistaEfectiva === 'raw' && <ConsultorView />}
           </div>
         </main>
       </div>
